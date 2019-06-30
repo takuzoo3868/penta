@@ -1,12 +1,12 @@
 # penta (PENTest + Automation tool) [![](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/download/releases/3.7.0/) ![t](https://img.shields.io/badge/status-stable-green.svg) [![](https://img.shields.io/github/license/takuzoo3868/penta.svg)](https://github.com/takuzoo3868/penta/blob/master/LICENSE.md)
 
-<p align="center"><img width=40% src="https://github.com/takuzoo3868/penta/blob/master/assets/img/logo_penta.png"></p>
+<p align="center"><img width=40% src="https://raw.githubusercontent.com/wiki/takuzoo3868/penta/images/logo_penta.png"></p>
 
 Penta is is Pentest automation tool using Python3. 
 
 (Future!) It provides advanced features such as metasploit and nexpose to extract vuln info found on specific servers.
 
-<img src="assets/img/demo.gif", width="1000">
+![demo](https://raw.githubusercontent.com/wiki/takuzoo3868/penta/images/demo.gif)
 
 ### Installation
 
