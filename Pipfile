@@ -4,6 +4,9 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+flake8 = "*"
+autopep8 = "*"
+flake8-import-order = "*"
 
 [packages]
 beautifulsoup4 = "*"
@@ -16,3 +19,8 @@ python-whois = "*"
 
 [requires]
 python_version = "3.7"
+
+[scripts]
+start = "python penta/penta.py"
+lint = "flake8 --show-source ."
+format = "autopep8 -ivr ."
