@@ -1,0 +1,3 @@
+[flake8]
+exclude = .venv, .gitignore, .git, .idea, logs, assets, README.md
+max-line-length = 150

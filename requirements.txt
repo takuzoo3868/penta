@@ -1,0 +1,14 @@
+-i https://pypi.org/simple
+beautifulsoup4==4.7.1
+certifi==2019.6.16
+chardet==3.0.4
+dnspython==1.16.0
+future==0.17.1
+idna==2.8
+pillow==6.0.0
+python-nmap==0.6.1
+python-whois==0.7.1
+requests==2.22.0
+selenium==3.141.0
+soupsieve==1.9.2
+urllib3==1.25.3
