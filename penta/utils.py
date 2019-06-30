@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-import os
-import sys
 import json
 import mimetypes
+import pathlib
 
 
 class Colors:
@@ -18,10 +17,14 @@ class Colors:
 
 class LogHandler:
 
-    def save_logfile_at_new_dir(self, new_dir_path, new_filename, new_file_content, mode='w'):
-        os.makedirs(new_dir_path, exist_ok=True)
+    def save_logfile(self, new_filename, new_file_content):
+        penta_dir_path = pathlib.Path(__file__).parent.parent
+        log_dir_path = penta_dir_path / "logs"
+        log_file = pathlib.Path(log_dir_path / new_filename)
 
-        with open(os.path.join(new_dir_path, new_filename), mode) as f:
+        pathlib.Path(log_dir_path).mkdir(exist_ok=True)
+
+        with log_file.open(mode="w") as f:
             file_type = mimetypes.guess_type(new_filename)
 
             if file_type[0] == "application/json":

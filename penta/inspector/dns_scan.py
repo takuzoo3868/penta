@@ -2,7 +2,6 @@
 import dns.resolver
 import dns.reversename
 import whois
-from ipaddress import IPv4Address
 from socket import getfqdn
 import pprint
 

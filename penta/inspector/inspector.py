@@ -1,11 +1,7 @@
 #!/usr/bin/env python
-import os
-import sys
 from datetime import datetime
 import requests
-import io
 import socket
-from PIL import Image
 from socket import AF_INET, SOCK_STREAM, setdefaulttimeout
 
 try:

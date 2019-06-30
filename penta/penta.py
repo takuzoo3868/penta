@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 import sys
 import socket
 import argparse
@@ -18,7 +17,7 @@ from inspector.dns_scan import DnsScanner
 
 def logo():
     banner = r"""{}{}
-   ██████╗ ███████╗███╗   ██╗████████╗ █████╗ 
+   ██████╗ ███████╗███╗   ██╗████████╗ █████╗
    ██╔══██╗██╔════╝████╗  ██║╚══██╔══╝██╔══██╗
    ██████╔╝█████╗  ██╔██╗ ██║   ██║   ███████║
    ██╔═══╝ ██╔══╝  ██║╚██╗██║   ██║   ██╔══██║
@@ -29,8 +28,8 @@ def logo():
   Web: https://takuzoo3868.github.io
   Last Modified: 22 May 2019.
 ==================================================
-- Penta is Pentest automation tool. It provides 
-advanced features such as metasploit and nexpose 
+- Penta is Pentest automation tool. It provides
+advanced features such as metasploit and nexpose
 to extract vuln info found on specific servers.
 =================================================={}
 """.format(Colors.OKGREEN, Colors.BOLD, Colors.END)
@@ -103,12 +102,10 @@ def main():
                 nmap_scan.nmap_scan(ip, port)
 
             results = nmap_scan.nmap_json_export(ip, options.ports)
-            log_dir_name = "logs"
-            log_dir = "../{}".format(log_dir_name)
             log_filename = "scan_{}.json".format(hostname)
 
-            log_handler.save_logfile_at_new_dir(log_dir, log_filename, results)
-            print("[*] LOG: {} was generated in {}".format(log_filename, log_dir_name))
+            log_handler.save_logfile(log_filename, results)
+            print("[+] {} was generated".format(log_filename))
             print("[*] === DONE ================================================\n")
 
         elif num_menu == "3":
