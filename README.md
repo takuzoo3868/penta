@@ -62,17 +62,16 @@ optional arguments:
 ```
 [ ] === MENU LIST ===========================================
 [0] EXIT
-[1] Check opened port(s) 	Default: 21,22,25,80,110,443,8080
-[2] Port scanning
-[3] Nmap
-[4] Check HTTP option methods
-[5] Grab DNS server info
-[ ] =========================================================
+[1] Port scanning Default: 21,22,25,80,110,443,8080
+[2] Nmap & vuln scanning
+[3] Check HTTP option methods
+[4] Grab DNS server info
+[5] Shodan host search
+[6] FTP connect with anonymous
+[7] SSH connect with Brute Force
+[99] Change target host
 ```
 
-
-1. Check opened port(s)  
-To check the open port(s) for a target. 
 
 1. Port scanning  
 To check ports for a target. Log output supported.
@@ -86,4 +85,15 @@ To check the methods (e.g. GET,POST) for a target.
 1. Grab DNS server info  
 To show the info about DNS server.
 
-1. (TBA)
+1. Shodan host search
+To collect host service info from Shodan.
+Request [Shodan API key](https://developer.shodan.io/) to enable the feature.
+
+1. FTP connect with anonymous
+To check if it has anonymous access activated in port 21.
+FTP users can authenticate themselves using the plain text sign-in protocol (Typically username and password format), but they can connect anonymously if the server is configured to allow it.
+Anyone can log in to the server if the administrator has allowed an FTP connection with an anonymous login.
+
+1. SSH connect with Brute Force
+To check ssh connection to scan with Brute Force.
+Dictionary data is in `data/dict`.

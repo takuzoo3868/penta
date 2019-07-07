@@ -1,13 +1,14 @@
 #!/usr/bin/env python
+import pprint
+from socket import getfqdn
+
 import dns.resolver
 import dns.reversename
 import whois
-from socket import getfqdn
-import pprint
 
 try:
     from ipwhois import IPWhois
-except Exception as e:
+except Exception:
     print("[!] pipenv install ipwhois")
     exit(1)
 
@@ -148,7 +149,7 @@ class DnsScanner:
                 ptr_text += str(ptr) + "\n"
                 rev_name += ptr_text
 
-        except Exception as e:
+        except Exception:
             pass
 
         try:
@@ -159,5 +160,5 @@ class DnsScanner:
 
             print(rev_name)
 
-        except Exception as e:
+        except Exception:
             pass

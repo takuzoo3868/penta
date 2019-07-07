@@ -56,6 +56,7 @@ docs/_build/
 
 # pipenv
 .venv/
+.env
 
 # debug/build
 **/__pycache__/
