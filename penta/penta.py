@@ -9,6 +9,7 @@ from inspector.inspector import Inspect
 from inspector.nmap_scan import NmapScanner
 from inspector.shodan_scan import ShodanSearch
 from inspector.ssh_access import SshConnector
+from msfscan.metasploit import MetaSploitRPC
 from utils import Colors, LogHandler
 
 try:
@@ -49,6 +50,7 @@ def menu():
     print("[5] Shodan host search")
     print("[6] FTP connect with anonymous")
     print("[7] SSH connect with Brute Force")
+    print("[8] Metasploit Frame Work")
     print("[99] Change target host")
 
     num_menu = input("\n[>] Choose an option number: ")
@@ -72,6 +74,7 @@ def main():
     shodan_search = ShodanSearch()
     ftp_access = FtpConnector()
     ssh_access = SshConnector()
+    msf_scan = MetaSploitRPC()
     log_handler = LogHandler()
 
     hostname = ""
@@ -129,6 +132,16 @@ def main():
 
         elif num_menu == "7":
             ssh_access.ssh_connect(ip)
+            print("\n")
+
+        elif num_menu == "8":
+            msf_scan.msf_scan(ip)
+            print("\n")
+
+        elif num_menu == "9":
+            # TODO: hydra brute force login --> smb ssh ftp http
+            # TODO: malware detect functions e.g avast socks
+            pass
 
         elif num_menu == "99":
             hostname = input("[*] Specify IP or name domain:")
@@ -141,5 +154,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.version_info[0] < 3:
+        raise Exception("[!] Must be using Python 3")
+
     logo()
     main()

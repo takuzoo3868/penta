@@ -20,6 +20,12 @@ python-dotenv = "*"
 shodan = "*"
 isort = "*"
 paramiko = "*"
+pymetasploit3 = "*"
+ipwhois = "*"
+tabulate = "*"
+xmltodict = "*"
+lxml = "*"
+netifaces = "*"
 
 [requires]
 python_version = "3.7"

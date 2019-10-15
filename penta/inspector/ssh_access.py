@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-import paramiko
-import socket
-import pathlib
 import concurrent.futures as cf
+import pathlib
+import socket
+
+import paramiko
 
 from utils import Colors
 
@@ -59,11 +60,11 @@ class SshConnector:
                                 results_list.append(future.result())
 
             except Exception as err:
-                print("[!] ERROR {}".format(err))
+                print("[!] {}".format(err))
                 pass
 
         except Exception as err:
-            print("[!] ERROR: {}".format(err))
+            print("[!] {}".format(err))
             pass
 
     def ssh_connect(self, host):

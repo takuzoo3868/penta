@@ -85,15 +85,15 @@ To check the methods (e.g. GET,POST) for a target.
 1. Grab DNS server info  
 To show the info about DNS server.
 
-1. Shodan host search
-To collect host service info from Shodan.
+1. Shodan host search  
+To collect host service info from Shodan.  
 Request [Shodan API key](https://developer.shodan.io/) to enable the feature.
 
-1. FTP connect with anonymous
-To check if it has anonymous access activated in port 21.
+1. FTP connect with anonymous  
+To check if it has anonymous access activated in port 21.  
 FTP users can authenticate themselves using the plain text sign-in protocol (Typically username and password format), but they can connect anonymously if the server is configured to allow it.
 Anyone can log in to the server if the administrator has allowed an FTP connection with an anonymous login.
 
-1. SSH connect with Brute Force
-To check ssh connection to scan with Brute Force.
+1. SSH connect with Brute Force  
+To check ssh connection to scan with Brute Force.  
 Dictionary data is in `data/dict`.
