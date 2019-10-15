@@ -69,6 +69,7 @@ optional arguments:
 [5] Shodan host search
 [6] FTP connect with anonymous
 [7] SSH connect with Brute Force
+[8] Metasploit Frame Work
 [99] Change target host
 ```
 
@@ -97,3 +98,7 @@ Anyone can log in to the server if the administrator has allowed an FTP connecti
 1. SSH connect with Brute Force  
 To check ssh connection to scan with Brute Force.  
 Dictionary data is in `data/dict`.
+
+1. Metasploit Frame Work [Auto Scan is Future Work!!!]
+To check useful msf modules from opened ports.
+Module DB is in `data/msf/module_list.db`
