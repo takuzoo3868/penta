@@ -1,5 +1,8 @@
-# Intellij
 .idea/
+.vscode/
+.gitleaks_bin/
+repos/
+.tool-versions
 
 # Byte-compiled / optimized / DLL files
 *.dll
@@ -26,9 +29,11 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
 *.manifest
+*.spec
 
 # Installer logs
 pip-log.txt
@@ -43,6 +48,9 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *,cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
 
 # Translations
 *.mo
@@ -54,9 +62,20 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
-# pipenv
+# Pipenv
 .venv/
 .env
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+__pypackages__/
 
-# debug/build
+# Debug/Build
 **/__pycache__/
+
+# Local data
+data/cve
+**.sqlite3

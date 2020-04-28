@@ -17,8 +17,9 @@ class FtpConnector:
             self.nmsc.scan(hosts=ip, arguments="-T4 -F")
 
             if self.nmsc[ip]['tcp'][21]['state'] == "open":
-                print("FTP 21/tcp {}OPEN{}".format(Colors.GREEN, Colors.END))
-                response = input("[*] Would you like connect with anonymous user to {} ?[y/N]".format(ip))
+                print("FTP 21/tcp {}OPEN{}".format(Colors.LIGHTGREEN, Colors.END))
+                response = input(
+                    "[*] Would you like connect with anonymous user to {} ?[y/N]".format(ip))
                 if response in ['y', 'ye', 'yes']:
                     try:
                         ftp_client = ftplib.FTP(ip, timeout=10)

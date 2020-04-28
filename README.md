@@ -1,12 +1,14 @@
-# penta (PENTest + Automation tool) [![](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/download/releases/3.7.0/) ![t](https://img.shields.io/badge/status-stable-green.svg) [![](https://img.shields.io/github/license/takuzoo3868/penta.svg)](https://github.com/takuzoo3868/penta/blob/master/LICENSE.md)
+# penta (PENTest + semi-Automation tool) [![](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/download/releases/3.7.0/) ![t](https://img.shields.io/badge/status-stable-green.svg) [![](https://img.shields.io/github/license/takuzoo3868/penta.svg)](https://github.com/takuzoo3868/penta/blob/master/LICENSE.md)
 
 <p align="center"><img width=40% src="https://raw.githubusercontent.com/wiki/takuzoo3868/penta/images/logo_penta.png"></p>
 
-Penta is is Pentest automation tool using Python3. 
+Penta is is Pentest semi-automation tool using Python3. 
 
-(Future!) It provides advanced features such as metasploit and nexpose to extract vuln info found on specific servers.
+(Future!) It provides advanced features to extract vuln info found on specific servers. I'm now developing a scanning system using vuln-db.
 
 ![demo](https://raw.githubusercontent.com/wiki/takuzoo3868/penta/images/demo.gif)
+
+![demo2](https://raw.githubusercontent.com/wiki/takuzoo3868/penta/images/demo2.gif)
 
 ### Installation
 
@@ -23,7 +25,7 @@ Resolve python package dependency.
 $ pipenv install
 ```
 
-If you dislike pipenv...
+If you dislike pipenv
 
 ```
 $ pip install -r requirements.txt
@@ -33,12 +35,8 @@ $ pip install -r requirements.txt
 
 ```
 $ pipenv run start <options>
-```
-
-If you dislike pipenv...
-
-```
-$ python penta/penta.py
+OR
+$ python penta/penta.py <options>
 ```
 
 #### Usage: List options
@@ -57,7 +55,18 @@ optional arguments:
   -proxy PROXY    Proxy[IP:PORT]
 ```
 
-#### Usage: Main menu
+(Note: 2020/04/28) For the interactive mode, options will be placed where they are needed for each function.
+
+### Main menu
+
+```
+[ ] === MENU LIST ===========================================
+[0] EXIT
+[1] IP based scan menu
+[2] VulnDB construction menu
+```
+
+### IP based scan menu
 
 ```
 [ ] === MENU LIST ===========================================
@@ -101,4 +110,33 @@ Dictionary data is in `data/dict`.
 
 1. Metasploit Frame Work [Auto Scan is Future Work!!!]
 To check useful msf modules from opened ports.
-Module DB is in `data/msf/module_list.db`
+Module DB is in `data/msf/module_list.db`.
+Now, I have built a module list DB, and I am moving to a method to use it.
+
+### VulnDB construction menu
+
+```
+[ ] === MENU LIST ===========================================
+[0] Return to MAIN MENU
+[1] Generate a daily report: CVE,EDB,MSF...
+[2] View a report
+[3] Fetch CVEs from nvd.nist
+[4] Fetch EDB records from exploit-db
+[5] Fetch MSF modules from rapid7
+[6] Fetch MSF modules from local
+```
+
+1. Generate a daily report  
+Retrieves the changed CVE, Metasploit framework module, and the latest ExploitDB records via online and outputs the information to the terminal.
+
+1. View a report  
+The vulnerability information recorded in the local DB `vuln_db.sqlite3` is output to the terminal, without retrieving the information.
+
+1. Fetch CVEs  
+Download the specified year's CVE from [NVD Data Feeds](https://nvd.nist.gov/vuln/data-feeds) and record it to the DB.
+
+1. Fetch Exploits　(Experimental Features)  
+Retrieves exploit information in ExploitDB from the online site. 
+
+1. Fetch Metasploit framework modules  
+Each module of msf contains hardcoded CVE information and other information that is useful for scanning. This feature aggregates the information recorded in each module, both online and offline, and provides an association with CVE and EDB.

@@ -88,7 +88,7 @@ class MetaSploitRPC:
     def __init__(self):
         self.nm = nmap.PortScanner()
 
-    def msf_scan(self, ip):
+    def scan(self, ip):
         self.exec_msf()
         print("[*] Reading data from module_list.db")
         self.read_db()
@@ -114,7 +114,8 @@ class MetaSploitRPC:
 
     def exec_msf(self):
         print("[*] Launching Metasploit for msfrpcd")
-        msfrpcd_cmd = "msfrpcd -p " + str(msf_port) + " -U " + msf_user + " -P " + msgrpc_pass + " -u /api/ -S"
+        msfrpcd_cmd = "msfrpcd -p " + str(msf_port) + " -U " + \
+            msf_user + " -P " + msgrpc_pass + " -u /api/ -S"
         subprocess.run(msfrpcd_cmd.split())
 
     def kill_msf(self):
@@ -304,7 +305,8 @@ class MetaSploitRPC:
                     port_list.append(port_num)
 
             if [port_num, module_type, module_name, module_parameters, module_description] not in port_module_list:
-                port_module_list.append([port_num, module_type, module_name, module_parameters, module_description])
+                port_module_list.append([port_num, module_type, module_name,
+                                         module_parameters, module_description])
 
         conn_url = sqlite3.connect(msf_db_path)
         conn_url.text_factory = str
@@ -323,7 +325,8 @@ class MetaSploitRPC:
                 path_list.append(url_path)
 
             if [url_path, module_type, module_name, module_parameters, module_description] not in path_module_list:
-                path_module_list.append([url_path, module_type, module_name, module_parameters, module_description])
+                path_module_list.append([url_path, module_type, module_name,
+                                         module_parameters, module_description])
 
     @staticmethod
     def run_nmap(ip):
@@ -399,10 +402,12 @@ class MetaSploitRPC:
                     if '@method' in port['service'] and port['service']['@method'] == "probed":
                         for rel_key in relevant:
                             if rel_key in service_keys:
-                                banner += "{0}: {1} ".format(rel_key.strip("@"), port['service'][rel_key])
+                                banner += "{0}: {1} ".format(rel_key.strip("@"),
+                                                             port['service'][rel_key])
                         for m_key in service_keys:
                             if m_key not in notrelevant and m_key not in relevant:
-                                banner += '{0}: {1} '.format(m_key.strip("@"), port['service'][m_key])
+                                banner += '{0}: {1} '.format(m_key.strip("@"),
+                                                             port['service'][m_key])
 
                     banner_data = banner.rstrip()
 
@@ -412,12 +417,14 @@ class MetaSploitRPC:
                             unique_svc_bannerlist.append([ip, port['@portid'], service_banner])
                         tmp_banner = banner_data.replace("product: ", "")
                         if [str(port['@portid']) + "/" + port['@protocol'], tmp_banner] not in service_bannerlist:
-                            service_bannerlist.append([str(port['@portid']) + "/" + port['@protocol'], tmp_banner])
+                            service_bannerlist.append(
+                                [str(port['@portid']) + "/" + port['@protocol'], tmp_banner])
 
                 except IndexError:
                     pass
 
-                tmp_ports_list.append([str(ip), str(port['@portid']), port['@protocol'], port['service']['@name']])
+                tmp_ports_list.append([str(ip), str(port['@portid']),
+                                       port['@protocol'], port['service']['@name']])
 
                 if port['service']['@name'] != "http":
                     if port['service']['@name'] not in unique_svc_namelist and "?" not in str(port['service']['@name']):
@@ -467,21 +474,21 @@ class MetaSploitRPC:
                             if module_param == "":
                                 if module_type == "auxiliary":
                                     if [host_no, port_no, module_type, module_name, module_param,
-                                        module_description] not in auto_explist_aux:
+                                            module_description] not in auto_explist_aux:
                                         found_flag = True
                                         auto_explist_aux.append(
                                             [host_no, port_no, module_type, module_name, module_param,
                                              module_description])
                                 if module_type == "exploit":
                                     if [host_no, port_no, module_type, module_name, module_param,
-                                        module_description] not in auto_explist_exp:
+                                            module_description] not in auto_explist_exp:
                                         found_flag = True
                                         auto_explist_exp.append(
                                             [host_no, port_no, module_type, module_name, module_param,
                                              module_description])
                             else:
                                 if [host_no, port_no, module_type, module_name, module_param,
-                                    module_description] not in manual_explist:
+                                        module_description] not in manual_explist:
                                     found_flag = True
                                     manual_explist.append(
                                         [host_no, port_no, module_type, module_name, module_param, module_description])
@@ -490,19 +497,19 @@ class MetaSploitRPC:
                                 if module_param == "":
                                     if module_type == "auxiliary":
                                         if [host_no, port_no, module_type, module_name, module_param,
-                                            module_description] not in tmp_auto_explist_aux:
+                                                module_description] not in tmp_auto_explist_aux:
                                             tmp_auto_explist_aux.append(
                                                 [host_no, port_no, module_type, module_name, module_param,
                                                  module_description])
                                     if module_type == "exploit":
                                         if [host_no, port_no, module_type, module_name, module_param,
-                                            module_description] not in tmp_auto_explist_exp:
+                                                module_description] not in tmp_auto_explist_exp:
                                             tmp_auto_explist_exp.append(
                                                 [host_no, port_no, module_type, module_name, module_param,
                                                  module_description])
                                 else:
                                     if [host_no, port_no, module_type, module_name, module_param,
-                                        module_description] not in tmp_manual_explist:
+                                            module_description] not in tmp_manual_explist:
                                         tmp_manual_explist.append(
                                             [host_no, port_no, module_type, module_name, module_param,
                                              module_description])
@@ -518,21 +525,21 @@ class MetaSploitRPC:
                                 if module_param == "":
                                     if module_type == "auxiliary":
                                         if [host_no, port_no, module_type, module_name, module_param,
-                                            module_description] not in auto_explist_aux:
+                                                module_description] not in auto_explist_aux:
                                             found_flag = True
                                             auto_explist_aux.append(
                                                 [host_no, port_no, module_type, module_name, module_param,
                                                  module_description])
                                     if module_type == "exploit":
                                         if [host_no, port_no, module_type, module_name, module_param,
-                                            module_description] not in auto_explist_exp:
+                                                module_description] not in auto_explist_exp:
                                             found_flag = True
                                             auto_explist_exp.append(
                                                 [host_no, port_no, module_type, module_name, module_param,
                                                  module_description])
                                 else:
                                     if [host_no, port_no, module_type, module_name, module_param,
-                                        module_description] not in manual_explist:
+                                            module_description] not in manual_explist:
                                         found_flag = True
                                         manual_explist.append(
                                             [host_no, port_no, module_type, module_name, module_param,
@@ -542,19 +549,19 @@ class MetaSploitRPC:
                                     if module_param == "":
                                         if module_type == "auxiliary":
                                             if [host_no, port_no, module_type, module_name, module_param,
-                                                module_description] not in tmp_auto_explist_aux:
+                                                    module_description] not in tmp_auto_explist_aux:
                                                 tmp_auto_explist_aux.append(
                                                     [host_no, port_no, module_type, module_name, module_param,
                                                      module_description])
                                         if module_type == "exploit":
                                             if [host_no, port_no, module_type, module_name, module_param,
-                                                module_description] not in tmp_auto_explist_exp:
+                                                    module_description] not in tmp_auto_explist_exp:
                                                 tmp_auto_explist_exp.append(
                                                     [host_no, port_no, module_type, module_name, module_param,
                                                      module_description])
                                     else:
                                         if [host_no, port_no, module_type, module_name, module_param,
-                                            module_description] not in tmp_manual_explist:
+                                                module_description] not in tmp_manual_explist:
                                             tmp_manual_explist.append(
                                                 [host_no, port_no, module_type, module_name, module_param,
                                                  module_description])
@@ -587,7 +594,8 @@ class MetaSploitRPC:
             for banner in service_bannerlist:
                 if len(banner[1]) > 0:
                     tmp_service_bannerlist.append([banner[0], banner[1]])
-            tmp_service_bannerlist = sorted(tmp_service_bannerlist, key=lambda x: banner[1], reverse=True)
+            tmp_service_bannerlist = sorted(
+                tmp_service_bannerlist, key=lambda x: banner[1], reverse=True)
             print(tabulate(tmp_service_bannerlist))
 
             msf_match_dict = {}
@@ -639,18 +647,20 @@ class MetaSploitRPC:
                                     if "linux" in module_name or "windows" in module_name or "solaris" in module_name or "freebsd" in module_name or "osx" in module_name or "netware" in module_name:
                                         if os_type in module_name:
                                             if [host_no + ":" + port_no, module_category, module_name] not in tmp_list:
-                                                tmp_list.append([host_no + ":" + port_no, module_category, module_name])
+                                                tmp_list.append(
+                                                    [host_no + ":" + port_no, module_category, module_name])
                                             if [host_no + ":" + port_no, module_category, module_name, module_param,
-                                                module_description] not in auto_explist_exp:
+                                                    module_description] not in auto_explist_exp:
                                                 auto_explist_exp.append(
                                                     [host_no + ":" + port_no, module_category, module_name,
                                                      module_param,
                                                      module_description])
                                     else:
                                         if [host_no + ":" + port_no, module_category, module_name] not in tmp_list:
-                                            tmp_list.append([host_no + ":" + port_no, module_category, module_name])
+                                            tmp_list.append(
+                                                [host_no + ":" + port_no, module_category, module_name])
                                         if [host_no + ":" + port_no, module_category, module_name, module_param,
-                                            module_description] not in auto_explist_exp:
+                                                module_description] not in auto_explist_exp:
                                             auto_explist_exp.append(
                                                 [host_no + ":" + port_no, module_category, module_name, module_param,
                                                  module_description])
@@ -672,7 +682,7 @@ class MetaSploitRPC:
                         if [host_no + ":" + port_no, module_category, module_name] not in tmp_list:
                             tmp_list.append([host_no + ":" + port_no, module_category, module_name])
                         if [host_no + ":" + port_no, module_category, module_name, module_param,
-                            module_description] not in auto_explist_aux:
+                                module_description] not in auto_explist_aux:
                             auto_explist_aux.append(
                                 [host_no + ":" + port_no, module_category, module_name, module_param,
                                  module_description])
@@ -688,5 +698,6 @@ class MetaSploitRPC:
             module_param = data[3]
             module_description = data[4]
             if str(port_no) == str(number):
-                tmp_result_list.append([port_no, module_type, module_name, module_param, module_description])
+                tmp_result_list.append([port_no, module_type, module_name,
+                                        module_param, module_description])
         return tmp_result_list

@@ -1,3 +1,14 @@
 [flake8]
-exclude = .venv, .gitignore, .git, .idea, logs, assets, README.md
-max-line-length = 150
+exclude = 
+    .venv, 
+    .gitignore, 
+    .git, 
+    .idea, 
+    logs, 
+    data, 
+    README.md
+ignore = E203, E266, E501, W503
+max-line-length = 120
+max-complexity = 18
+select = B,C,E,F,I,W,T4,B9
+import-order-style = google

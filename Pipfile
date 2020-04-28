@@ -7,6 +7,9 @@ verify_ssl = true
 flake8 = "*"
 autopep8 = "*"
 flake8-import-order = "*"
+flake8-docstrings = "*"
+flake8-double-quotes = "*"
+pep8-naming = "*"
 
 [packages]
 beautifulsoup4 = "*"
@@ -26,6 +29,13 @@ tabulate = "*"
 xmltodict = "*"
 lxml = "*"
 netifaces = "*"
+sqlalchemy = "*"
+pytest = "*"
+requests-html = "*"
+pymysql = "*"
+tqdm = "*"
+ujson = "*"
+python-dateutil = "*"
 
 [requires]
 python_version = "3.7"
@@ -34,4 +44,3 @@ python_version = "3.7"
 start = "python penta/penta.py"
 lint = "flake8 --show-source ."
 format = "autopep8 -ivr ."
-isort = "isort -rc ."

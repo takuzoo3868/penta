@@ -24,7 +24,7 @@ class NmapScanner:
             proto = self.nmsc[ip]['tcp'][int(port)]['name']
 
             if state == "open":
-                print("{} {}/tcp {}OPEN{}".format(proto, port, Colors.GREEN, Colors.END))
+                print("{} {}/tcp {}OPEN{}".format(proto, port, Colors.LIGHTGREEN, Colors.END))
                 cpe = self.nmsc[ip].tcp(int(port))['cpe']
                 server = self.nmsc[ip].tcp(int(port))['product']
                 version = self.nmsc[ip].tcp(int(port))['version']
@@ -58,7 +58,7 @@ class NmapScanner:
                     break
                 banner_sum += banner_sum + banner
             con.close()
-            print("{}{}{}".format(Colors.GREEN, banner_sum, Colors.END))
+            print("{}{}{}".format(Colors.LIGHTGREEN, banner_sum, Colors.END))
 
         except Exception as err:
             print("{}[!]{} ERROR {}".format(Colors.RED, Colors.END, err))
@@ -263,7 +263,7 @@ class NmapScanner:
 
             script_results = nm[ip]['tcp'][port]['script']
             for key, value in script_results.items():
-                print("Script: {}{}{}".format(Colors.GREEN, key, Colors.END))
+                print("Script: {}{}{}".format(Colors.LIGHTGREEN, key, Colors.END))
                 print("{}\n".format(value))
 
         except Exception:

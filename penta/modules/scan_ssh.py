@@ -20,8 +20,9 @@ class SshConnector:
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         try:
-            self.ssh.connect(ip, port=22, username=user, password=password, timeout=5, auth_timeout=5, banner_timeout=5)
-            print("[+] Login {}/{} {}success{}".format(user, password, Colors.GREEN, Colors.END))
+            self.ssh.connect(ip, port=22, username=user, password=password,
+                             timeout=5, auth_timeout=5, banner_timeout=5)
+            print("[+] Login {}/{} {}success{}".format(user, password, Colors.LIGHTGREEN, Colors.END))
             stdin, stdout, stderr = self.ssh.exec_command("ifconfig")
             for line in stdout.readlines():
                 print(line.strip())
@@ -74,7 +75,7 @@ class SshConnector:
             result = sock.connect_ex((host, 22))
             sock.close()
             if result == 0:
-                print("SSH 22/tcp {}OPEN{}".format(Colors.GREEN, Colors.END))
+                print("SSH 22/tcp {}OPEN{}".format(Colors.LIGHTGREEN, Colors.END))
                 response = input("[*] Would you like start bru73 f0rc3 to {} ? [y/N]".format(host))
                 if response in ['y', 'ye', 'yes']:
                     self.ssh_brute_force(host)
