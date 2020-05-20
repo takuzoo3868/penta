@@ -1,265 +1,319 @@
-#!/usr/bin/env python
+import logging
 import os
-import socket
 from pprint import pprint
-from socket import AF_INET, SOCK_STREAM, setdefaulttimeout
+import readline  # noqa: F401
 
+from lib.loading import Loading
+from lib.menu import Menu
+from lib.utils import Colors, system_exit
 import nmap
+from tabulate import tabulate
 
-from utils import Colors
 
-
-class NmapScanner:
-
+# ref: https://nmap.org/book/reduce-scantime.html
+class NmapScanner(object):
     def __init__(self):
-        self.nmsc = nmap.PortScanner()
+        self.nm = nmap.PortScanner()
+        self.default_ports = "20-1024,8080"
 
-    def nmap_scan(self, ip, port):
-        try:
-            print("\n[*] Checking port {} ......".format(port))
-            self.nmsc.scan(ip, port)
+    def input_target_ports(self):
+        while True:
+            try:
+                input_val = input("[?] Specify the target ports (default: 20-1024,8080): ")
+                split_val = input_val.split(",")
+            except KeyboardInterrupt:
+                system_exit()
+                break
 
-            print("[*] Executing command: {}".format(self.nmsc.command_line()))
-            state = self.nmsc[ip]['tcp'][int(port)]['state']
-            proto = self.nmsc[ip]['tcp'][int(port)]['name']
-
-            if state == "open":
-                print("{} {}/tcp {}OPEN{}".format(proto, port, Colors.LIGHTGREEN, Colors.END))
-                cpe = self.nmsc[ip].tcp(int(port))['cpe']
-                server = self.nmsc[ip].tcp(int(port))['product']
-                version = self.nmsc[ip].tcp(int(port))['version']
-                print("CPE: {}".format(cpe))
-                print("Product: {} {}".format(server, version))
-                if port == "80":
-                    print("\n[ ] Checking connection from port 80")
-                    self.check_open_port_80(ip)
+            if len(input_val) == 0:
+                defalut_ports = self.default_ports.split(",")
+                return self.output_target_ports(defalut_ports)
             else:
-                print("{} {}/tcp {}CLOSED{}".format(proto, port, Colors.RED, Colors.END))
+                target_ports = self.output_target_ports(split_val)
+                if target_ports is not None:
+                    return target_ports
+                else:
+                    print("[-] Please input port like '22,53,110,143-4564'")
+                    continue
 
-        except Exception as err:
-            print("[-] Failed to connect with {} for port scanning".format(ip))
-            print("{}[!]{} ERROR: {}".format(Colors.RED, Colors.END, err))
+        return None
+
+    def output_target_ports(self, port_list: list):
+        checked_list = []
+        try:
+            for port in port_list:
+                if "-" in port:
+                    high_range = int(port.split('-')[1])
+                    low_range = int(port.split('-')[0])
+                    if high_range < low_range:
+                        high_range, low_range = low_range, high_range
+
+                    ports_range = [i for i in range(low_range, (high_range + 1))]
+
+                    for p in ports_range:
+                        if self.validate_port_range(p):
+                            checked_list.append(p)
+                        else:
+                            return None
+                else:
+                    p = int(port)
+                    if self.validate_port_range(p):
+                        checked_list.append(p)
+                    else:
+                        return None
+        except Exception:
+            return None
+
+        target_port_list = list(set(sorted(checked_list)))
+        return target_port_list
+
+    def validate_port_range(self, port: int):
+        try:
+            port_num = port
+            if 0 <= port_num <= 65535:
+                return True
+        except ValueError:
+            return False
+        return False
+
+    def port_scan(self, ip):
+        ports = self.input_target_ports()
+        if ports is None:
+            return None
+
+        self.check_ports(ip, ports)
+        return None
+
+    def check_ports(self, ip, ports):
+        try:
+            # Check if the target is online or offline first.
+            scan_result = []
+            if self.is_online(ip):
+                mapped_ports = map(str, ports)
+                all_ports = ",".join(mapped_ports)
+                port_details = self.peep_state(ip, all_ports)
+
+                for port, detail in port_details.items():
+                    # name = detail['name']
+                    state = detail['state']
+
+                    print("[*] Prot {}: {}".format(str(port), self.get_state(state)))
+
+                    if self.check_state(state):
+                        result = self.detect_service(ip, port)
+                        scan_result.append((self.get_result(result, port)))
+                    else:
+                        # scan_result.append((port, state, name, None, None))
+                        pass
+
+                sort_list = sorted(scan_result)
+                logging.info("Opened ports information...")
+                print(tabulate(sort_list, headers=["PORT", "SERVICE", "INFO", "CPE", "DETAIL"], tablefmt="grid"))
+
+            elif not self.is_online(ip):
+                logging.error("Target IP is offline, or blocking ping probe")
+
+        except KeyboardInterrupt:
+            logging.warn("Process stopped as TERMINATE Signal received")
+
+    def get_state(self, state: str):
+        if state == "open":
+            return "{}{}{}".format(Colors.GREEN, state.upper(), Colors.END)
+        elif state == "closed":
+            return "{}{}{}".format(Colors.RED, state.upper(), Colors.END)
+        elif state == "filtered":
+            return "{}{}{}".format(Colors.DARKGRAY, state.upper(), Colors.END)
+        elif state == "unfiltered":
+            return "{}{}{}".format(Colors.LIGHTGRAY, state.upper(), Colors.END)
+        elif state == "open|filtered":
+            return "{}{}{}".format(Colors.DARKGRAY, state.upper(), Colors.END)
+        elif state == "closed|filtered":
+            return "{}{}{}".format(Colors.DARKGRAY, state.upper(), Colors.END)
+
+    def get_result(self, result, port):
+        # state = result[port]['state']
+        name = result[port]['name']
+        product = result[port]['product']
+        version = result[port]['version']
+        info = "{} {}".format(product, version)
+        cpe = result[port]['cpe']
+        extra = result[port]['extrainfo']
+
+        return port, name, info, cpe, extra
+
+    # Check target port service
+    def detect_service(self, ip, port):
+        try:
+            with Loading(text='Detect port {} service...'.format(port), spinner='dots'):
+                self.nm.scan(hosts=ip, ports=str(port), arguments='-sV -T5')
+            return self.nm[ip]['tcp']
+        except KeyError:
             pass
 
-    def check_open_port_80(self, ip):
-        setdefaulttimeout(5)
-
-        # AF_INET:     Set(host, port)
-        # SOCK_STREAM: Connection TCP Protocol
-        con = socket.socket(AF_INET, SOCK_STREAM)
+    def peep_state(self, ip, port):
         try:
-            con.connect((ip, 80))
-            con.send(b"HEAD / HTTP/1.0\r\n\r\n")
+            with Loading(text='Scanning...', spinner='dots'):
+                self.nm.scan(hosts=ip, ports=str(port), arguments='-d2 -T4')
+            return self.nm[ip]['tcp']
+        except KeyError:
+            pass
 
-            banner_sum = ''
-            while True:
-                banner = con.recv(1024).decode("utf-8")
-                if not banner:
-                    break
-                banner_sum += banner_sum + banner
-            con.close()
-            print("{}{}{}".format(Colors.LIGHTGREEN, banner_sum, Colors.END))
-
-        except Exception as err:
-            print("{}[!]{} ERROR {}".format(Colors.RED, Colors.END, err))
+    def check_state(self, state):
+        if state == "open":
+            return True
+        else:
             return False
 
-    def nmap_json_export(self, ip, ports):
+    # Check if target is online using Ping scan
+    def is_online(self, ip):
         try:
-            self.nmsc.scan(ip, ports)
-            print("\n[*] Logging results...")
-            results = {}
-
-            for x in self.nmsc.csv().split("\n")[1:-1]:
-                salted_line = x.split(";")
-                ip = salted_line[0]
-                proto = salted_line[3]
-                port = salted_line[4]
-                state = salted_line[6]
-
-                try:
-                    if state == "open":
-                        results[ip].append({proto: port})
-                except KeyError:
-                    results[ip] = []
-                    results[ip].append({proto: port})
-
-            return results
-
-        except Exception as err:
-            print("[-] Error to connect with {} for port scanning".format(ip))
-            print("[-] ERROR: {}".format(err))
+            self.nm.scan(hosts=ip, arguments='-sP')
+            result = self.nm[ip].state()
+        except KeyError:
             pass
+        else:
+            if result == 'up':
+                return True
+            else:
+                return False
 
     @staticmethod
     def nmap_menu_list():
-        print("\nNmap scan options")
-        print("[0] Return main menu")
-        print("[1] Intense scan")
-        print("[2] Intense scan, plus UDP")
-        print("[3] Intense scan, all TCP ports")
-        print("[4] Intense scan, no ping")
-        print("[5] Ping scan")
-        print("[6] Quick scan")
-        print("[7] Quick scan plus")
-        print("[8] Quick Trace Route")
-        print("[9] Regular scan")
-        print("[10] Send Bad Checksums")
-        print("[11] Generate Random Mac Address Spoofing")
-        print("[12] Fragment Packets")
-        print("[13] Slow comprehensive scan")
-        print("[14] NSE Script scan")
+        menu = Menu(False)
+        title = "======= NMAP MENU LIST ======================================"
+        menu_list = [
+            'Intense',
+            'Intense + UDP',
+            'Intense + TCP',
+            'Intense + no ping',
+            'Ping',
+            'Quick',
+            'Quick alpha',
+            'Quick traceroute',
+            'Regular',
+            'Send Bad Checksums',
+            'Generate Random Mac Address Spoofing',
+            'Fragment Packets',
+            'Slow comprehensive scan',
+            'NSE Script',
+            '[Return]'
+        ]
 
-        option = input("\n[>] Choose an option number: ")
-        return option
+        menu_num = menu.show(title, menu_list)
+        return menu_num
 
-    def nmap_menu(self, ip):
-        while True:
-            option = self.nmap_menu_list()
+    def menu(self, ip):
+        arg_dict = {
+            0: "-T4 -A -v",
+            1: "-sS -sU -T4 -A",
+            2: "-p 1-65535 -T4 -A",
+            3: "-T4 -A -v -Pn",
+            4: "-sn",
+            5: "-T4 -F",
+            6: "-sV -T4 -O -F --version-light",
+            7: "-sn --traceroute",
+            8: "-d2",
+            9: "--badsum",
+            10: "-sT -Pn --spoof-mac 0",
+            11: "-f",
+            12: "-sS -sU -T4 -A -PE -PP -PS80 -PA3389 -PU40125 -PY -g 53 --script=safe",
+        }
 
-            if option == "1":
-                self.nmsc.scan(hosts=ip, arguments="-T4 -A -v")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
+        number = self.nmap_menu_list()
+        if number is not None:
+            if 0 <= number <= 12:
+                self._run(ip, arg_str=arg_dict[number])
+            elif number == 13:
+                self._run_script(ip)
+            elif number == 14 or number == -1:
+                pass
+        else:
+            print("[!] Incorrect choice")
 
-            elif option == "2":
-                euid = os.geteuid()
-                if euid != 0:
-                    print("[-] Error: SYN scan requires root permission")
-                else:
-                    self.nmsc.scan(hosts=ip, arguments="-sS -sU -T4 -A")
-                    print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                    pprint(self.nmsc[ip])
+        return None
 
-            elif option == "3":
-                self.nmsc.scan(hosts=ip, arguments="-p 1-65535 -T4 -A")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "4":
-                self.nmsc.scan(hosts=ip, arguments="-T4 -A -v -Pn")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "5":
-                self.nmsc.scan(hosts=ip, arguments="-sn")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "6":
-                self.nmsc.scan(hosts=ip, arguments="-T4 -F")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "7":
-                self.nmsc.scan(hosts=ip, arguments="-sV -T4 -O -F --version-light")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "8":
-                self.nmsc.scan(hosts=ip, arguments="-sn --traceroute")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "9":
-                self.nmsc.scan(hosts=ip)
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "10":
-                self.nmsc.scan(hosts=ip, arguments="--badsum")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "11":
-                self.nmsc.scan(hosts=ip, arguments="-sT -Pn --spoof-mac 0")
-                print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                pprint(self.nmsc[ip])
-
-            elif option == "12":
-                euid = os.geteuid()
-                if euid != 0:
-                    print("[-] Error: Flag scan requires root permission")
-                else:
-                    self.nmsc.scan(hosts=ip, arguments="-f")
-                    print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                    pprint(self.nmsc[ip])
-
-            elif option == "13":
-                euid = os.geteuid()
-                if euid != 0:
-                    print("[-] Error: Flag scan requires root permission")
-                else:
-                    self.nmsc.scan(hosts=ip,
-                                   arguments="-sS -sU -T4 -A -PE -PP -PS80 -PA3389 -PU40125 -PY -g 53 "
-                                             "--script=safe")
-                    print("[*] Executing command: {}".format(self.nmsc.command_line()))
-                    pprint(self.nmsc[ip])
-
-            elif option == "14":
-                self.nmap_scan_script(ip)
-
-            elif option == "0":
-                break
-
+    def _run(self, ip_str, arg_str):
+        if arg_str in ("-sS", "-sN", "-sF", "-sX", "-O", "-f"):
+            euid = os.geteuid()
+            if euid != 0:
+                logging.warn("Requires root permission")
+                return None
             else:
-                print("[-] Incorrect option\n")
+                pass
 
-    def nmap_scan_script(self, ip):
-        self.nmsc.scan(ip, arguments="-T4 -F")
-        print("[*] Executing command: {}".format(self.nmsc.command_line()))
+        logging.info("Executing nmap")
+        try:
+            with Loading(text='Scanning...', spinner='dots'):
+                self.nm.scan(hosts=ip_str, arguments=arg_str)
+            logging.info("Executed command: {}".format(self.nm.command_line()))
+            pprint(self.nm[ip_str])
+        except nmap.PortScannerError as e:
+            logging.error(e)
+            return None
+        return None
 
-        host = self.nmsc.all_hosts()[0]
+    def _run_script(self, ip):
+        logging.info("Executing nmap")
+        try:
+            with Loading(text='Scanning...', spinner='dots'):
+                self.nm.scan(ip, arguments="-T4 -F")
+            logging.info("Executed command: {}".format(self.nm.command_line()))
+        except Exception:
+            return None
+
+        host = self.nm.all_hosts()[0]
         print("Host: {}".format(host))
 
-        for port in self.nmsc[host]['tcp']:
-            print("\tPort: {}:\t{} {}".format(port, self.nmsc[host]['tcp'][port]['state'],
-                                              self.nmsc[host]['tcp'][port]['name']))
+        for port in self.nm[host]['tcp']:
+            print("\tPort: {}:\t{} {}".format(port, self.nm[host]['tcp'][port]['state'],
+                                              self.nm[host]['tcp'][port]['name']))
 
-        for port in self.nmsc[host]['tcp']:
-
-            if (port == 21) and self.nmsc[host]['tcp'][port]['state'] == "open":
+        for port in self.nm[host]['tcp']:
+            if (port == 21) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking FTP {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 22) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 22) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking SSH {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 80 or port == 8080) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 80 or port == 8080) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking HTTP {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 443) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 443) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking SSL {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 3306) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 3306) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking MySQL {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 5432) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 5432) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking POSTGRES {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 5900) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 5900) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking VNC {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 27017) and self.nmsc[host]['tcp'][port]['state'] == "open":
+            if (port == 27017) and self.nm[host]['tcp'][port]['state'] == "open":
                 print("[*] Checking MONGODB {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+                NmapScanner._run_script_deep(ip, port)
 
-            elif (port == 55553) and self.nmsc[host]['tcp'][port]['state'] == "open":
-                print("[*] Checking METAEXPLOIT {} port with NSE".format(port))
-                self.nmap_scan_script_result(ip, port)
+            if (port == 55553) and self.nm[host]['tcp'][port]['state'] == "open":
+                print("[*] Checking MetaExploit {} port with NSE".format(port))
+                NmapScanner._run_script_deep(ip, port)
+
+        return None
 
     @staticmethod
-    def nmap_scan_script_result(ip, port):
+    def _run_script_deep(ip, port):
         nm = nmap.PortScanner()
 
         try:
-            nm.scan(hosts=ip, arguments="-sC -sV -p{} --script=safe".format(port))
+            with Loading(text='Scanning...', spinner='dots'):
+                nm.scan(hosts=ip, arguments="-sC -sV -p {} --script=safe".format(port))
 
             script_results = nm[ip]['tcp'][port]['script']
             for key, value in script_results.items():

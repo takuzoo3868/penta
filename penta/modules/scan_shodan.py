@@ -1,120 +1,120 @@
-#!/usr/bin/env python
-import os
-import pathlib
+import logging
+import textwrap
 
+from config import FileConfig
+from lib.utils import Colors, get_val_deal
 import shodan
-from dotenv import load_dotenv
-
-dotenv_path = pathlib.Path(__file__).resolve().parent.parent.parent / ".env"
-load_dotenv(dotenv_path)
-SHODAN_API_KEY = os.environ.get("SHODAN_API_KEY")
+from tabulate import tabulate
 
 
 class ShodanSearch:
-
     def __init__(self):
-        # shodan key
-        self.shodanKeyString = SHODAN_API_KEY
-        self.shodanApi = shodan.Shodan(self.shodanKeyString)
+        config = FileConfig()
+        config.load_yaml()
+        self.shodan_key_string = config.settings["SHODAN_API_KEY"]
+        self.shodan_api = shodan.Shodan(self.shodan_key_string)
 
     def shodan_key_info(self):
-        print("[*] Shodan API info...")
+        logging.info("Shodan service access using API key...")
 
         try:
-            info = self.shodanApi.info()
-            for inf in info:
-                print("{}: {}".format(inf, info[inf]))
-        except Exception as err:
-            print("[-] Error: {}".format(err))
+            info = self.shodan_api.info()
+            for i in info:
+                print("{}{}: {}{}".format(Colors.DARKGRAY, i, info[i], Colors.END))
+        except shodan.APIError as e:
+            logging.error(e)
 
-    def shodan_host_info(self, ip):
+    def shodan_ip_to_service(self, ip):
         self.shodan_key_info()
 
+        host_table = []
+        cve_table = []
         try:
-            print("\n[*] Shodan Service...")
+            logging.info("Fetch info from shodan.io...")
+            host_items = self.shodan_api.host(ip)
 
-            host = self.shodanApi.host(ip)
+            print("IP: {}".format(host_items.get('ip_str')))
+            print("Country: {}".format(host_items.get('country_name')))
+            print("City:    {}".format(host_items.get('city', 'Unknown')))
+            print("Longitude: {}".format(host_items.get('longitude')))
+            print("Latitude:  {}".format(host_items.get('latitude')))
+            print("Organization: {}".format(host_items.get('org')))
+            print("Operating System: {}".format(host_items.get('os')))
 
-            print("IP: {}".format(host.get('ip_str')))
-            print("Country: {} : {}".format(host.get('country_name', 'Unknown'), host.get('country_code3')))
-            print("City: {}".format(host.get('city', 'Unknown')))
-            print("Longitude: {}".format(host.get('longitude')))
-            print("Latitude: {}".format(host.get('latitude')))
-            print("Organization: {}".format(host.get('org')))
-            print("Operating System: {}".format(host.get('os')))
-            print("Updated: {}".format(host.get('updated')))
-
-            for item in host['data']:
-                print("\nPort: {}".format(item['port']))
-                print("===============================")
-                if 'isp' in item.keys():
-                    print("ISP: {}".format(item['isp']))
-                if 'product' in item.keys():
-                    print("Product: {}".format(item['product']))
-                print("Data: {}".format(item['data']))
+            for item in host_items['data']:
+                port = get_val_deal(item, 'port')
+                product = get_val_deal(item, 'product')
+                version = get_val_deal(item, 'version')
+                isp = get_val_deal(item, 'isp')
+                host_table.append(
+                    [
+                        port,
+                        product,
+                        version,
+                        isp,
+                    ]
+                )
 
                 if 'vulns' in item.keys():
-                    print("[+] Vulnerability!!!")
+                    check_list = []
                     for cve_info in item['vulns'].items():
-                        print("ID: {}".format(cve_info[0]))
-                        print("CVSS: {}".format(cve_info[1].get('cvss')))
-                        print("{}".format(cve_info[1].get('summary')))
+                        cve_id = cve_info[0]
+                        cvss = cve_info[1].get('cvss')
+                        summary = cve_info[1].get('summary')
+                        if cve_id not in check_list:
+                            cve_table.append(
+                                [
+                                    cve_id,
+                                    cvss,
+                                    textwrap.fill(summary, 80)
+                                ]
+                            )
+                            check_list.append(cve_id)
 
-        except shodan.APIError as err:
-            print("[-] API ERROR: {}".format(err))
+        except shodan.APIError as e:
+            logging.error(e)
 
+        if len(host_table) == 0:
+            logging.info("No opened ports")
+        else:
+            headers = ["Port", "Product", "Version", "ISP"]
+            print(tabulate(host_table, headers, tablefmt="grid"), flush=True)
 
-class DBEngine:
-    def __init__(self):
-        pass
+        if len(cve_table) == 0:
+            logging.info("No vulnerabilities")
+        else:
+            # TODO: query vulndb cve_id
+            logging.info("Vulnerability detected.")
+            headers = ["ID", "Score", "Info"]
+            print(tabulate(cve_table, headers, tablefmt="grid"), flush=True)
 
-    def get_value_deal_except(self, element, value_name):
-        try:
-            value = element[value_name]
-        except:
-            value = ""
-        return value
+    # def shodan_ip_to_service(self, service, version=""):
+    #     self.shodan_key_info()
 
-    def shodan_ip_get_services(self, ip):
-        shodan_api = shodan.Shodan(SHODAN_API_KEY)
-        services = []
-        host = shodan_api.host(ip)
-        for item in host['data']:
-            port = self.get_value_deal_except(item, 'port')
-            product = self.get_value_deal_except(item, 'product')
-            version = self.get_value_deal_except(item, 'version')
-            service = {'ip': ip, 'port': port, 'product': product, 'version': version}
-            yield service
-        #     services.append(service)
-        # return services
+    #     host_table = []
+    #     try:
+    #         logging.info("Fetch [{}-{}] from shodan.io...".format(service, version))
+    #         host_items = self.shodan_api.search("{} {}".format(service, version))
 
-    def shodan_service_get_ips(self, service, version=""):
-        shodan_api = shodan.Shodan(SHODAN_API_KEY)
-        matches = []
-        print("[*] shodan search: {} {}".format(service, version))
-        results = shodan_api.search(f"{service} {version}")
-        for item in results['matches']:
-            ip = item['ip_str']
-            port = item['port']
-            product = service
-            version = version
-            matche = {'ip': ip, 'port': port, 'product': product, 'version': version}
-            matches.append(matche)
-        return matches
+    #         for item in host_items['matches']:
+    #             ip = item['ip_str']
+    #             port = item['port']
+    #             product = get_val_deal(item, 'product')
+    #             version = get_val_deal(item, 'version')
+    #             host_table.append(
+    #                 [
+    #                     ip,
+    #                     port,
+    #                     product,
+    #                     version,
+    #                 ]
+    #             )
 
+    #     except shodan.APIError as e:
+    #         logging.error(e)
 
-# test for shodan search DB
-if __name__ == "__main__":
-    search_engine = DBEngine()
-    ip = "89.135.83.205"
-    print("[TEST] congratulation,{} have those services:".format(ip))
-    services = search_engine.shodan_ip_get_services(ip)
-    for service in services:
-        print(f"{service['ip']}/{service['port']}/{service['product']}/{service['version']}")
-
-    service = "tomcat"
-    version = "7.0"
-    print("[TEST] congratulation,those ip have operate {}-{}:".format(service, version))
-    ips = search_engine.shodan_service_get_ips(service, version)
-    for matche in ips:
-        print(f"{matche['ip']}/{matche['port']}/{matche['product']}/{matche['version']}")
+    #     if len(host_table) == 0:
+    #         logging.info("No matched IPs in shodan.io")
+    #     else:
+    #         headers = ["IP", "Port", "Priduct", "Version"]
+    #         print(tabulate(host_table, headers, tablefmt="grid"), flush=True)

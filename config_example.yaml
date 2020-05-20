@@ -1,0 +1,12 @@
+SHODAN_API_KEY: ""
+GITHUB_TOKEN: ""
+
+METASPLOIT:
+  MODULE_PATH: ""
+  MSGRPC_PASS: ""
+
+MYSQL:
+  USER: ""
+  PASS: ""
+  HOST: "" 
+  DB_NAME: ""

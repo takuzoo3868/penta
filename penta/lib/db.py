@@ -1,32 +1,48 @@
 import logging
 
-from models.models import Base, CveRecord, EdbRecord, MsfRecord
+from lib.models import Base, CveRecord, EdbRecord, MsfRecord
 from sqlalchemy import and_, create_engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.sql import exists
 
+# TODO: DB to io.CacheFile
 DB_CONNECT_STRING = 'sqlite:///data/vuln_db.sqlite3'
 
 
-class DBInit():
+class DBInit(object):
     def __init__(self):
         self.engine = create_engine(
             DB_CONNECT_STRING,
             connect_args={'check_same_thread': False},
-            poolclass=StaticPool
+            poolclass=StaticPool,
         )
         Session = sessionmaker(bind=self.engine)
         self.session = Session(autoflush=False)
+
+    # Creates the database
+    def create(self):
         try:
             Base.metadata.create_all(self.engine, checkfirst=True)
         except Exception as e:
-            logging.debug(e)
-            pass
+            logging.error(e)
+
+    # Delete the database
+    def clear(self):
+        for table in Base.metadata.tables:
+            logging.info("Delete target: {}".format(table))
+        try:
+            Base.metadata.drop_all(self.engine)
+        except Exception as e:
+            logging.error(e)
+
+    # Optimizes the database
+    def optimize(self):
+        self.engine.execute("VACUUM")
 
 
-class DBHelper():
+class DBHelper(object):
     def set_env(self, session, model_class, record_key):
         self.session = session
         self.model_class = model_class

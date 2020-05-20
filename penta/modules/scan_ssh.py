@@ -3,9 +3,8 @@ import concurrent.futures as cf
 import pathlib
 import socket
 
+from lib.utils import Colors
 import paramiko
-
-from utils import Colors
 
 
 class SshConnector:

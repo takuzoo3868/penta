@@ -1,37 +1,24 @@
-#!/usr/bin/env python
 import csv
 import datetime
 import getpass
-import importlib
-import itertools
-import multiprocessing
-import os
+import logging
 import pathlib
-import random
 import sqlite3
 import subprocess
-import sys
 import time
-import xml.etree.ElementTree
-from multiprocessing import reduction
-from xml.etree import ElementTree
 
-import netifaces
-import nmap
-import requests
-import xmltodict
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from pymetasploit3.msfrpc import *
+from config import FileConfig
+import nmap
+from pymetasploit3.msfrpc import MsfRpcClient, MsfRpcError
+import requests
 from tabulate import tabulate
+import xmltodict
 
-# VARIABLEs
+
 msf_ip = "127.0.0.1"
 msf_port = 55553
 msf_user = "msf"
-
-num_threads = 1
-chunk_size = 100
 
 port_list = []
 port_module_list = []
@@ -60,18 +47,17 @@ alr_tested_module_list = []
 working_exploit_list = []
 
 # PATH
-penta_path = pathlib.Path(__file__).resolve().parent.parent.parent
-dotenv_path = penta_path / ".env"
-load_dotenv(dotenv_path)
-msgrpc_pass = os.environ.get("MSGRPC_PASS")
+config = FileConfig()
+config.load_yaml()
+msgrpc_pass = config.settings["METASPLOIT"]["MSGRPC_PASS"]
 
+penta_path = pathlib.Path(__file__).resolve().parent.parent.parent
 data_path = penta_path / "data"
 msf_path = data_path / "msf"
 msf_db_path = msf_path / "module_list.db"
 msf_port_db = msf_path / "port_db.sqlite"
 
 log_directory = penta_path / "logs"
-
 debug_file = log_directory / "test"
 
 # Building timestamped filename
@@ -79,18 +65,20 @@ date_and_time = time.strftime("%m") + time.strftime("%d") + time.strftime("%y") 
     "%H") + time.strftime("%M") + time.strftime("%S")
 
 # HTTP headers
-headers = {"User-Agent": "Mozilla/5.0 (Windows NT 6.2; rv:30.0) Gecko/20150101 Firefox/32.0",
-           "Connection": "keep-alive"}
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.2; rv:30.0) Gecko/20150101 Firefox/32.0",
+    "Connection": "keep-alive"}
 
 
-class MetaSploitRPC:
-
+class MetaSploitRPC(object):
     def __init__(self):
         self.nm = nmap.PortScanner()
+        self.msf_csv_list = []
 
     def scan(self, ip):
         self.exec_msf()
-        print("[*] Reading data from module_list.db")
+        # TODO: change db --> vulndb
+        logging.info("Reading data from module_list.db")
         self.read_db()
         print("[*] Loaded {} URI paths from module_list.db".format(str(len(path_list))))
 
@@ -98,7 +86,6 @@ class MetaSploitRPC:
         http_list, https_list, ports_list, os_list = self.parse_nmap(str(nmap_filename) + ".xml")
         # http_list, https_list, ports_list, os_list = parse_nmap(str(DEBUG_file) + ".xml")
 
-        tmp_list = []
         port_data_list = []
         for x in ports_list:
             if [x[1], x[2]] not in port_data_list:
@@ -106,17 +93,16 @@ class MetaSploitRPC:
         if len(port_data_list) > 0:
             self.show_port_info(port_data_list)
         else:
-            print("[!] No open ports found.  Please check your target IPs")
+            logging.error("No opened ports found.")
 
         self.run_msf(ports_list)
         self.kill_msf()
         print("[+] Exit!")
 
     def exec_msf(self):
-        print("[*] Launching Metasploit for msfrpcd")
-        msfrpcd_cmd = "msfrpcd -p " + str(msf_port) + " -U " + \
-            msf_user + " -P " + msgrpc_pass + " -u /api/ -S"
-        subprocess.run(msfrpcd_cmd.split())
+        logging.info("Launching Metasploit for msfrpcd")
+        cmd = "msfrpcd -p {} -U {} -P {} -u /api/ -S".format(str(msf_port), msf_user, msgrpc_pass)
+        subprocess.run(cmd.split())
 
     def kill_msf(self):
         cmd = "pkill -f msfrpcd"
@@ -126,14 +112,13 @@ class MetaSploitRPC:
         global auto_explist_exp
         global auto_explist_aux
         global tmp_modulelist
-        global msf_csv_list
 
         try:
-            vuln_urllist = []
+            # vuln_urllist = []
             tmp_modulelist_01 = []
             if len(tmp_modulelist) < 1:
                 tmp_modulelist = self.pull_msf()
-            msf_csv_list = self.read_msf_csv()
+            self.msf_csv_list = self.read_msf_csv()
 
             tmp_modulelist_02 = tmp_modulelist
             for mlist in tmp_modulelist:
@@ -170,31 +155,27 @@ class MetaSploitRPC:
             print("[-] Killed msfrpcd")
 
     def pull_msf(self):
-        ip = msf_ip
-        port = msf_port
-
-        tmp_msf_modulelist = []
+        target_modules = []
 
         try:
             client = MsfRpcClient(msgrpc_pass, port=55553)
 
             aux_list = client.modules.auxiliary
             for aux in aux_list:
-                tmp_msf_modulelist.append(['auxiliary', aux])
-            time.sleep(1)
-
+                target_modules.append(['auxiliary', aux])
+            time.sleep(0.5)
             exp_list = client.modules.exploits
             for exp in exp_list:
-                tmp_msf_modulelist.append(['exploit', exp])
-            print("\n[*] Loaded {} modules from Metasploit".format(str(len(tmp_msf_modulelist))))
+                target_modules.append(['exploit', exp])
+
+            logging.info("Loaded {} modules from Metasploit".format(str(len(target_modules))))
             del client
 
-        except MsfRpcError as err:
-            print("[!] {}".format(err))
+        except MsfRpcError as e:
+            logging.error(e)
             self.kill_msf()
-            sys.exit()
 
-        return tmp_msf_modulelist
+        return target_modules
 
     def read_msf_csv(self):
         tmp_csvlist = []
@@ -262,7 +243,7 @@ class MetaSploitRPC:
             try:
                 table = soup.find("table", {"class": "port"})
                 rows = table.find_all('tr')
-                bold = True
+                # bold = True
                 found = False
                 for tr in rows:
                     cols = tr.find_all('td')
@@ -276,9 +257,9 @@ class MetaSploitRPC:
                                              (port, port_name, port_desc))
                                 conn.commit()
                                 found = True
-                        except:
+                        except Exception:
                             pass
-            except:
+            except Exception:
                 pass
 
         time.sleep(3)
@@ -294,19 +275,26 @@ class MetaSploitRPC:
         all_rows = select.fetchall()
 
         for row in all_rows:
-            port_num = row[0]
+            port = row[0]
             module_type = row[1]
             module_name = row[2]
             module_parameters = row[3]
             module_description = row[4]
 
-            if port_num not in port_list:
-                if int(port_num) > int(greater_than_ports):
-                    port_list.append(port_num)
+            if port not in port_list:
+                if int(port) > int(greater_than_ports):
+                    port_list.append(port)
 
-            if [port_num, module_type, module_name, module_parameters, module_description] not in port_module_list:
-                port_module_list.append([port_num, module_type, module_name,
-                                         module_parameters, module_description])
+            if [port, module_type, module_name, module_parameters, module_description] not in port_module_list:
+                port_module_list.append(
+                    [
+                        port,
+                        module_type,
+                        module_name,
+                        module_parameters,
+                        module_description
+                    ]
+                )
 
         conn_url = sqlite3.connect(msf_db_path)
         conn_url.text_factory = str
@@ -315,23 +303,30 @@ class MetaSploitRPC:
         all_rows_url = select_url.fetchall()
 
         for row in all_rows_url:
-            url_path = row[0]
+            url = row[0]
             module_type = row[1]
             module_name = row[2]
             module_parameters = row[3]
             module_description = row[4]
 
-            if url_path not in path_list and url_path != "/":
-                path_list.append(url_path)
+            if url not in path_list and url != "/":
+                path_list.append(url)
 
-            if [url_path, module_type, module_name, module_parameters, module_description] not in path_module_list:
-                path_module_list.append([url_path, module_type, module_name,
-                                         module_parameters, module_description])
+            if [url, module_type, module_name, module_parameters, module_description] not in path_module_list:
+                path_module_list.append(
+                    [
+                        url,
+                        module_type,
+                        module_name,
+                        module_parameters,
+                        module_description
+                    ]
+                )
 
     @staticmethod
     def run_nmap(ip):
-        print("[+] Running nmap for port scan: {}".format(ip))
-        port_str = ''
+        logging.info("Running nmap for port scan: {}".format(ip))
+        port_str = ""
         count = 0
 
         for x in port_list:
@@ -344,22 +339,24 @@ class MetaSploitRPC:
         suffix = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
         filename = "_".join([basename, suffix])
         nmap_filename = log_directory / "nmap" / filename
+        file_str = str(nmap_filename)
 
         time.sleep(5)
         passwd = (getpass.getpass() + '\n').encode()
         time.sleep(5)
 
+        cmd_root = "sudo -S nmap"
         if len(port_str) < 1:
-            nmap_cmd = "sudo -S nmap -O --max-retries 3 -T4 -n -Pn --open -sT -sV --top-ports 65535 " + ip + " -oA " + str(
-                nmap_filename)
+            cmd_arg = "-O --max-retries 3 -T4 -n -Pn --open -sT -sV --top-ports 65535 {} -oA {}".format(ip, file_str)
         else:
-            nmap_cmd = "sudo -S nmap -O --max-retries 3 -T4 -n -Pn --open -sT -sV -p " + port_str + " " + ip + " -oA " + str(
-                nmap_filename)
+            cmd_arg = "-O --max-retries 3 -T4 -n -Pn --open -sT -sV -p {} {} -oA {}".format(port_str, ip, file_str)
+        nmap_cmd = "{} {}".format(cmd_root, cmd_arg)
+
         subprocess.run(nmap_cmd.split(), input=passwd, check=True)
         return nmap_filename
 
-    @staticmethod
-    def parse_nmap(filename):
+    @staticmethod  # noqa: C901
+    def parse_nmap(filename):  # noqa: C901
         tmp_http_list = []
         tmp_https_list = []
         tmp_ports_list = []
@@ -440,7 +437,7 @@ class MetaSploitRPC:
 
         return tmp_http_list, tmp_https_list, tmp_ports_list, tmp_os_list
 
-    def run_msf_portbased_modules(self):
+    def run_msf_portbased_modules(self):  # noqa: C901
         global exclude_portlist
         # print("\n**** Finding MSF Modules based on Service Name ****")
 
@@ -598,9 +595,9 @@ class MetaSploitRPC:
                 tmp_service_bannerlist, key=lambda x: banner[1], reverse=True)
             print(tabulate(tmp_service_bannerlist))
 
-            msf_match_dict = {}
+            # msf_match_dict = {}
             for x in host_port_list:
-                for y in msf_csv_list:
+                for y in self.msf_csv_list:
                     module_category = y[1]
                     module_name = y[2]
                     if str(x[1]) == y[0]:
@@ -689,15 +686,20 @@ class MetaSploitRPC:
 
     @staticmethod
     def lookup_port_db(number, protocol):
-        tmp_result_list = []
-
-        for data in port_module_list:
-            port_no = data[0]
-            module_type = data[1]
-            module_name = data[2]
-            module_param = data[3]
-            module_description = data[4]
+        result_list = []
+        for record in port_module_list:
+            port_no = record[0]
+            module_type = record[1]
+            module_name = record[2]
+            module_param = record[3]
+            module_description = record[4]
             if str(port_no) == str(number):
-                tmp_result_list.append([port_no, module_type, module_name,
-                                        module_param, module_description])
-        return tmp_result_list
+                result_list.append(
+                    [
+                        port_no,
+                        module_type,
+                        module_name,
+                        module_param,
+                        module_description
+                    ])
+        return result_list

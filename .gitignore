@@ -4,6 +4,12 @@
 repos/
 .tool-versions
 
+# Local data
+config.yaml
+Pipfile.lock
+data/cve
+**.sqlite3
+
 # Byte-compiled / optimized / DLL files
 *.dll
 *.iso
@@ -20,7 +26,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 logs/
 parts/
@@ -75,7 +80,3 @@ __pypackages__/
 
 # Debug/Build
 **/__pycache__/
-
-# Local data
-data/cve
-**.sqlite3

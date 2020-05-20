@@ -1,230 +1,274 @@
 #!/usr/bin/env python
 import argparse
 import logging
+import os
+import readline  # noqa: F401
 import socket
 import sys
 
-from fetch.fetch_edb import EdbCollector
-from fetch.fetch_msf import MsfCollector, MsfLocalCollector
-from fetch.fetch_nvd import NvdCveCollector
-from modules.inspector import Inspect
-from modules.report_vuln import DailyReportor
-from modules.scan_dns import DnsScanner
-from modules.scan_ftp import FtpConnector
-from modules.scan_msf import MetaSploitRPC
-from modules.scan_nmap import NmapScanner
-from modules.scan_shodan import ShodanSearch
-from modules.scan_ssh import SshConnector
-from utils import Colors, LogHandler
+import config
+import fetch
+import lib
+from lib.menu import Menu
+from lib.utils import ColorfulHandler, Colors, system_exit
+import modules
 
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S %Z")
+hostname = None
+ip = None
 
 
 def logo():
     banner = r"""{}{}
-   ██████╗ ███████╗███╗   ██╗████████╗ █████╗
-   ██╔══██╗██╔════╝████╗  ██║╚══██╔══╝██╔══██╗
-   ██████╔╝█████╗  ██╔██╗ ██║   ██║   ███████║
-   ██╔═══╝ ██╔══╝  ██║╚██╗██║   ██║   ██╔══██║
-   ██║     ███████╗██║ ╚████║   ██║   ██║  ██║
-   ╚═╝     ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝
-==================================================
-  Author: @takuzoo3868
-  Web: https://takuzoo3868.github.io
-  Last Modified: 28 April 2020.
-==================================================
-- Penta is Pentest semi-automation tool. It
-provides advanced features such as metasploit to
-extract vuln info found on specific servers.
-=================================================={}
+                   .',:clllllllllc:,'.
+              .';llllllllllllllllc;:lll..'.
+           .,clllllllllllllllllll.  ''' lllc,.
+         .:lllllllllllllllllllllllcllll clllllc.
+       .cllllllllllllllllllllllllllc,,'.'cllllllc.
+      ;lloooodddoooolllllllllllllll ;:..,..;clllc;.
+    .loddddddddddddddddolllllllllll:'':llll:,..c :ll.
+   .oddddddddddddddddddddollllllllllllllllllll c clll.
+   ddddddddddddolodddddddddllllllllllllllllll: :'.;lll
+  ldddddddddo. ..  ,dddddc;,,,,,,;;:cllllllll clll cll:
+ .dddddddddd. oddd' :ddl'''''''''''''',llllll;.''.,llll.
+ ;dddddddddd, 'cc;  odd:'''''''',;;::clllllllllllllllll,
+ cdddddddddddl,..,cddddd;''''';clllllllllllllllllllllll:
+ lddddddddddddddddddddddddoloolllllllllllllllllllllllll:
+ :dddddddddddddddddddddddddddolllllllllllllllllllllllll;
+ .dddddddddddddddddddddddddc;';llllllllllllllllllllllll.
+  lddddddddddddddddddddl,.     .:lllllllllllllllllllll:
+  .ddddddddddddddddddc.          'llllllllllllllllllll.
+   .dddddddddddddddd.             .:lllllllllllllllll.
+    .dddddddddddddd.                ;lllllllllllllll.
+      cddddddddddd:                  ,llllllllllll:
+       .oddddddddd'                   ;lllllllllc.
+
+        ██████╗ ███████╗███╗   ██╗████████╗ █████╗
+        ██╔══██╗██╔════╝████╗  ██║╚══██╔══╝██╔══██╗
+        ██████╔╝█████╗  ██╔██╗ ██║   ██║   ███████║
+        ██╔═══╝ ██╔══╝  ██║╚██╗██║   ██║   ██╔══██║
+        ██║     ███████╗██║ ╚████║   ██║   ██║  ██║
+        ╚═╝     ╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝
+    ==================================================
+      Author: @takuzoo3868
+      Web: https://takuzoo3868.github.io
+      Last Modified: 28 April 2020.
+    ==================================================
+    - Penta is Pentest semi-automation tool. It
+    provides advanced features such as metasploit to
+    extract vuln info found on specific servers.
+    =================================================={}
 """.format(Colors.LIGHTGREEN, Colors.BOLD, Colors.END)
     print(banner)
 
 
 def main_menu_list():
-    print("[ ] === MENU LIST ===========================================")
-    print("[0] EXIT")
-    print("[1] IP based scan menu")
-    print("[2] VulnDB construction menu")
+    menu = Menu(False)
+    title = "======= MAIN MENU ==========================================="
+    menu_list = [
+        'Menu list for IP-based scan',
+        'Menu list for building VulnDB',
+        '[Exit]'
+    ]
+    menu_num = menu.show(title, menu_list)
+    return menu_num
 
 
 def ip_menu_list():
-    print("[ ] === MENU LIST ===========================================")
-    print("[0] Return to MAIN MENU")
-    print("[1] Port scanning Default: 21,22,25,80,110,443,8080")
-    print("[2] Nmap & vuln scanning")
-    print("[3] Check HTTP option methods")
-    print("[4] Grab DNS server info")
-    print("[5] Shodan host search")
-    print("[6] FTP connect with anonymous")
-    print("[7] SSH connect with Brute Force")
-    print("[8] Metasploit Frame Work")
-    print("[99] Change target host")
+    menu = Menu(False)
+    title = "======= PENTEST MENU LIST ==================================="
+    menu_list = [
+        'Port scan',
+        'Nmap & vuln scan',
+        'Check HTTP option methods',
+        'Grab DNS server info',
+        'Shodan host search',
+        'FTP connect with anonymous',
+        'SSH connect with Brute Force',
+        'Metasploit Frame Work',
+        'Change target host',
+        '[Return]'
+    ]
+    menu_num = menu.show(title, menu_list)
+    return menu_num
 
 
 def report_menu_list():
-    print("[ ] === MENU LIST ===========================================")
-    print("[0] Return to MAIN MENU")
-    print("[1] Generate a daily report: CVE,EDB,MSF...")
-    print("[2] View a report")
-    print("[3] Fetch CVEs from nvd.nist")
-    print("[4] Fetch EDB records from exploit-db")
-    print("[5] Fetch MSF modules from rapid7")
-    print("[6] Fetch MSF modules from local")
-
-
-def choice_num():
-    number = int(input("\n[>] Choose an option number: "))
-    return number
+    menu = Menu(False)
+    title = "======= REPORT MENU LIST ===================================="
+    menu_list = [
+        'Daily report: CVE,EDB,MSF...',
+        'View  report',
+        'Fetch CVEs',
+        'Fetch Exploits',
+        'Fetch Msf modules',
+        'Menu list for DB',
+        '[Return]'
+    ]
+    menu_num = menu.show(title, menu_list)
+    return menu_num
 
 
 def main_menu(options):
-    num_menu = ""
-    main_menu_list()
-
-    while num_menu != 0:
-        num_menu = choice_num()
-        if num_menu == 0:
-            sys.exit(0)
-
-        elif num_menu == 1:
-            ip_menu(options)
-
-        elif num_menu == 2:
-            report_menu(options)
-
+    while True:
+        menu_num = main_menu_list()
+        if menu_num is not None:
+            if menu_num == 0:
+                ip_menu(options)
+            if menu_num == 1:
+                report_menu(options)
+            if menu_num == -1 or menu_num == 2:
+                logging.info("Stay out of trouble!!!")
+                sys.exit(0)
         else:
-            logging.error("Incorrect option")
+            print("[!] Incorrect choice")
 
 
-def ip_menu(options):
-    hostname = ""
-    num_menu = ""
+def initialize_variable(options):
+    global hostname
+    global ip
 
-    checker = Inspect()
-    nmap_scan = NmapScanner()
-    dns_scan = DnsScanner()
-    shodan_search = ShodanSearch()
-    ftp_access = FtpConnector()
-    ssh_access = SshConnector()
-    msf_rpc_scan = MetaSploitRPC()
-    log_handler = LogHandler()
-
-    if options.target is None:
-        while hostname == "":
-            hostname = input("[>] Specify IP or name domain: ")
+    addr_list = get_ip()
+    if addr_list is not None:
+        hostname, ip = addr_list
     else:
-        hostname = options.target
+        main_menu(options)
 
-    print("[*] Get IP address from host name...")
-    ip = socket.gethostbyname(hostname)
-    print('[+] The IP address of {} is {}{}{}\n'.format(hostname, Colors.LIGHTGREEN, ip, Colors.END))
 
-    ip_menu_list()
-    while num_menu != 0:
-        num_menu = choice_num()
-        if num_menu == 0:
-            main_menu(options)
+def get_ip():
+    while True:
+        try:
+            addr = input("[?] Specify IP or name domain: ")
+            if 'http://' in addr:
+                addr = addr.strip('http://')
+            elif 'https://' in addr:
+                addr = addr.strip('https://')
+            else:
+                addr = addr
+        except KeyboardInterrupt:
+            system_exit()
+            return None
 
-        elif num_menu == 1:
-            port_list = options.ports.split(',')
-            for port in port_list:
-                nmap_scan.nmap_scan(ip, port)
-
-            results = nmap_scan.nmap_json_export(ip, options.ports)
-            log_filename = "scan_{}.json".format(hostname)
-
-            log_handler.save_logfile(log_filename, results)
-            print("[+] {}{}{} was generated".format(Colors.LIGHTGREEN, log_filename, Colors.END))
-
-        elif num_menu == 2:
-            nmap_scan.nmap_menu(ip)
-
-        elif num_menu == 3:
-            checker.check_option_methods(hostname)
-
-        elif num_menu == 4:
-            dns_scan.check_dns_info(ip, hostname)
-
-        elif num_menu == 5:
-            shodan_search.shodan_host_info(ip)
-
-        elif num_menu == 6:
-            ftp_access.ftp_connect_anonymous(ip)
-
-        elif num_menu == 7:
-            ssh_access.ssh_connect(ip)
-
-        elif num_menu == 8:
-            msf_rpc_scan.scan(ip)
-
-        elif num_menu == 9:
-            # TODO: hydra brute force login --> smb ssh ftp http
-            # TODO: malware detect functions e.g avast socks
-            pass
-
-        elif num_menu == 99:
-            hostname = input("[*] Specify IP or name domain: ")
+        if config.IPV4_REGEX.match(addr) or config.DOMAIN_REGEX.match(addr):
+            hostname = addr
             print("[*] Get IP address from host name...")
-            ip = socket.gethostbyname(hostname)
-            print('[+] The IP address of {} is {}{}{}\n'.format(hostname, Colors.LIGHTGREEN, ip, Colors.END))
-
+            try:
+                ip = socket.gethostbyname(hostname)
+                print('[+] The IP address of {} is {}{}{}\n'.format(hostname, Colors.LIGHTGREEN, ip, Colors.END))
+                break
+            except Exception as e:
+                logging.error(e)
+                continue
         else:
-            logging.error("Incorrect option")
-        ip_menu_list()
+            continue
+    return [hostname, ip]
+
+
+# TODO: hydra brute force login --> smb ssh ftp http
+# TODO: malware detect functions e.g avast socks
+def ip_menu(options):
+    global hostname
+    global ip
+
+    if hostname is None:
+        initialize_variable(options)
+
+    checker = modules.Inspect()
+    nmap_scan = modules.NmapScanner()
+    dns_scan = modules.DnsScanner()
+    shodan_search = modules.ShodanSearch()
+    ftp_access = modules.FtpConnector()
+    ssh_access = modules.SshConnector()
+    msf_rpc_scan = modules.MetaSploitRPC()
+
+    print("\n[*] Target Host: {} IP: {}".format(hostname, ip))
+    num_menu = ip_menu_list()
+    if num_menu == -1:
+        main_menu(options)
+    elif num_menu == 0:
+        nmap_scan.port_scan(ip)
+    elif num_menu == 1:
+        nmap_scan.menu(ip)
+    elif num_menu == 2:
+        checker.check_option_methods(hostname)
+    elif num_menu == 3:
+        dns_scan.scan(ip, hostname)
+    elif num_menu == 4:
+        shodan_search.shodan_ip_to_service(ip)
+    elif num_menu == 5:
+        ftp_access.ftp_connect_anonymous(ip)
+    elif num_menu == 6:
+        ssh_access.ssh_connect(ip)
+    elif num_menu == 7:
+        msf_rpc_scan.scan(ip)
+
+    elif num_menu == 8:
+        initialize_variable(options)
+
+    elif num_menu == 9:
+        main_menu(options)
+    else:
+        print("[!] Incorrect choice")
+
+    ip_menu(options)
 
 
 def report_menu(options):
-    num_menu = ""
+    nvd = fetch.NvdCveCollector()
+    msf = fetch.MsfSelector()
+    edb = fetch.EdbSelector()
+    report = modules.DailyReportor()
 
-    fetch_nvd = NvdCveCollector()
-    fetch_msf = MsfCollector()
-    fetch_msf_local = MsfLocalCollector()
-    fetch_edb = EdbCollector()
-    report = DailyReportor()
-
-    report_menu_list()
-    while num_menu != 0:
-        num_menu = choice_num()
-        if num_menu == 0:
+    num_menu = report_menu_list()
+    if num_menu is not None:
+        if num_menu == -1:
             main_menu(options)
-
-        elif num_menu == 1:
+        if num_menu == 0:
             report.fetch_report()
-
-        elif num_menu == 2:
+        if num_menu == 1:
             report.view_report()
+        if num_menu == 2:
+            nvd.download()
+        if num_menu == 3:
+            edb.update()
+        if num_menu == 4:
+            msf.update()
+        if num_menu == 5:
+            lib.db_menu()
+        if num_menu == 6:
+            main_menu(options)
+    else:
+        print("[!] Incorrect choice")
 
-        elif num_menu == 3:
-            fetch_nvd.download()
-
-        elif num_menu == 4:
-            fetch_edb.major_update()
-
-        elif num_menu == 5:
-            fetch_msf.update()
-
-        elif num_menu == 6:
-            fetch_msf_local.update()
-
-        else:
-            logging.error("Incorrect option")
-        report_menu_list()
+    report_menu(options)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Penta is Pentest automation tool')
-
-    parser.add_argument("-target", dest="target", help="Specify target IP / domain")
-    parser.add_argument("-ports", dest="ports",
-                        help="Specify the target port(s) separated by comma. Default: 21,22,25,80,110,443,8080",
-                        default="21,22,25,80,110,443,8080")
-    parser.add_argument("-proxy", dest="proxy", help="Proxy[IP:PORT]")
-
+    parser = argparse.ArgumentParser(description='Penta is Pentest semi-automation tool')
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase verbosity logging level")
+    parser.add_argument("--proxy", help="Proxy[IP:PORT]")
     options = parser.parse_args()
+
+    try:
+        loglevel = {
+            0: logging.ERROR,
+            1: logging.WARN,
+            2: logging.INFO,
+            3: logging.DEBUG
+        }[options.verbose]
+    except KeyError:
+        loglevel = logging.DEBUG
+
+    logging.basicConfig(
+        handlers=[ColorfulHandler()],
+        level=loglevel,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S %Z")
+
+    if options.verbose == 3:
+        logging.getLogger('sqlalchemy.engine').setLevel(loglevel)
+    else:
+        logging.getLogger().setLevel(loglevel)
 
     main_menu(options)
 
@@ -233,5 +277,6 @@ if __name__ == "__main__":
     if sys.version_info[0] < 3:
         raise Exception("[!] Must be using Python 3")
 
+    os.system('clear')
     logo()
     main()

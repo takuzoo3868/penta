@@ -1,20 +1,17 @@
-#!/usr/bin/env python
 import ftplib
 import socket
 
+from lib.utils import Colors
 import nmap
-
-from utils import Colors
 
 
 class FtpConnector:
-
     def __init__(self):
-        self.nmsc = nmap.PortScanner()
+        self.nm = nmap.PortScanner()
 
     def ftp_connect_anonymous(self, ip):
         try:
-            self.nmsc.scan(hosts=ip, arguments="-T4 -F")
+            self.nm.scan(hosts=ip, arguments="-T4 -F")
 
             if self.nmsc[ip]['tcp'][21]['state'] == "open":
                 print("FTP 21/tcp {}OPEN{}".format(Colors.LIGHTGREEN, Colors.END))

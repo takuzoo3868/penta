@@ -1,26 +1,28 @@
-#!/usr/bin/env python
+import logging
+
 import requests
-
-from utils import Colors
-
-try:
-    from selenium import webdriver
-    from selenium.common.exceptions import WebDriverException
-except Exception:
-    print("[!] pipenv install selenium")
-    exit(1)
+from requests.exceptions import RequestException
 
 
-class Inspect:
-
+class Inspect(object):
     def check_option_methods(self, hostname):
         try:
-            r = requests.options('http://' + hostname, timeout=5)
-            print("[+] {}".format(r.headers['allow']))
+            response = requests.options('http://' + hostname, timeout=5)
+            print("[+] {}".format(response.headers['allow']))
         except KeyError:
-            print("{}[!]{} Not allow methods found!".format(Colors.RED, Colors.END))
+            logging.error("Not allow methods found")
             pass
         except Exception as err:
-            print("[!] Error to connect with {} for obtain option methods".format(hostname))
-            print("{}[!]{} {}".format(Colors.RED, Colors.END, err))
+            logging.error("Error to connect with {}".format(hostname))
+            logging.error(err)
+            pass
+
+    def traceroute(self, target):
+        url = 'https://api.hackertarget.com/mtr/?q={}'.format(target)
+        try:
+            response = requests.get(url)
+            route = response.text
+            print(str(route))
+        except RequestException:
+            logging.error("Connection error")
             pass

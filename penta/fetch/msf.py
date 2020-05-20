@@ -5,24 +5,42 @@ import random
 import re
 import time
 
+from config import FileConfig, GH_URL, MSF_FETCH_PAGE_LIMIT, MSF_MODULE_DEFAULT, MSF_URL
 from dateutil import parser
-from db.db import DBInit, MsfDAO
-from models.models import MsfRecord
+from lib.db import DBInit, MsfDAO
+from lib.models import MsfRecord
+from lib.utils import get_val, PATH_SPLIT
 import requests
 from requests.exceptions import RequestException
 import requests_html
 from tqdm import tqdm
-from utils import get_val, PATH_SPLIT
-
-api_token = os.environ.get("GITHUB_TOKEN")
-msf_modules_path = os.environ.get("METASPLOIT_MODULE_PATH")
-msf_parse_default = ["exploits", "auxiliary"]
-module_pape_limit = 5
 
 
-class MsfCollector:
+class MsfSelector(object):
     def __init__(self):
+        config = FileConfig()
+        config.load_yaml()
+        self.modules_path = config.settings["METASPLOIT"]["MODULE_PATH"]
+
+    def update(self):
+        if os.path.exists(self.modules_path):
+            msf_collect = MsfLocalCollector()
+        else:
+            logging.error("Metasploit framework's dir is not set")
+            msf_collect = MsfCollector()
+
+        msf_collect.update()
+        return None
+
+
+class MsfCollector(object):
+    def __init__(self):
+        config = FileConfig()
+        config.load_yaml()
+        self.github_api = config.settings["GITHUB_TOKEN"]
+
         db_init = DBInit()
+        db_init.create()
         self.msf_dao = MsfDAO(db_init.session)
 
         self.session = requests_html.HTMLSession()
@@ -33,7 +51,7 @@ class MsfCollector:
 
     # Request to the server for data crawling or scraping
     def request(self, url):
-        time.sleep(random.uniform(0.5, 2.0))
+        time.sleep(random.uniform(0.5, 1.0))
         try:
             page = self.session.get(url, headers=self.headers)
             return page
@@ -47,44 +65,44 @@ class MsfCollector:
 
     # Get the latest msf module list
     def fetch(self):
-        url = "https://www.rapid7.com/db/modules"
+        url = MSF_URL
         logging.info("Fetching {}".format(url))
 
-        module_list_page = self.request(url)
+        page = self.request(url)
 
         try:
-            module_lists = module_list_page.html.xpath("//section[@class='vulndb__results']/a/@href")
-            self.convert(module_lists)
+            module_links = page.html.xpath("//section[@class='vulndb__results']/a/@href")
+            self.convert(module_links)
         except Exception as e:
             logging.warning("Exception while parsing modules")
             logging.warning("{}".format(e))
 
     # Get the msf module list of the specified number of pages
     def traverse(self):
-        module_lists = []
-        for page_num in range(1, module_pape_limit + 1):
+        module_list = []
+        for page_num in range(1, MSF_FETCH_PAGE_LIMIT + 1):
             url = "https://www.rapid7.com/db/?type=metasploit&page={}".format(page_num)
             logging.info("Fetching {}".format(url))
 
-            module_list_page = self.request(url)
+            page = self.request(url)
 
             try:
-                modules = module_list_page.html.xpath("//section[@class='vulndb__results']/a/@href")
+                modules = page.html.xpath("//section[@class='vulndb__results']/a/@href")
                 for module in modules:
-                    module_lists.append(module)
+                    module_list.append(module)
             except Exception as e:
                 logging.warning("Exception while enumerating the list")
                 logging.warning("{}".format(e))
 
         try:
-            self.convert(module_lists)
+            self.convert(module_list)
         except Exception as e:
             logging.warning("Exception while parsing modules")
             logging.warning("{}".format(e))
 
     # Insert a record of each module to the database
-    def convert(self, module_lists):
-        items = module_lists
+    def convert(self, module_list):
+        items = module_list
         logging.info("Fetched {} modules list".format(len(items)))
         logging.info("Inserting fetched modules...")
 
@@ -101,9 +119,9 @@ class MsfCollector:
     # Extracts each element of HTML and converts it to a database model
     def parse_msf_module(self, item):
         url = "https://www.rapid7.com{}".format(item)
-        module_item = self.request(url)
+        page = self.request(url)
 
-        if module_item.status_code != 200:
+        if page.status_code != 200:
             msf_record = MsfRecord(module_name=item[11:])
             self.msf_dao.add(msf_record)
 
@@ -118,16 +136,16 @@ class MsfCollector:
             'module_architectures': '//div[contains(@class,"vulndb__detail-content")]/p[3]/text()',
         }
 
-        module_url = get_val(module_item.html.xpath(element_xpath["module_url"]))
-        code_link = get_val(module_item.html.xpath(element_xpath["module_devlink"]))
-        module_name = code_link[60:]
-        module_title = get_val(module_item.html.xpath(element_xpath["module_title"]))
-        module_describe_words = module_item.html.xpath(element_xpath["module_describe"])[0].split()
+        module_url = get_val(page.html.xpath(element_xpath["module_url"]))
+        module_devlink = get_val(page.html.xpath(element_xpath["module_devlink"]))
+        module_name = module_devlink[60:]
+        module_title = get_val(page.html.xpath(element_xpath["module_title"]))
+        module_describe_words = page.html.xpath(element_xpath["module_describe"])[0].split()
         module_describe = ' '.join(module_describe_words)
 
-        module_authors = get_val(module_item.html.xpath(element_xpath["module_authors"]))
+        module_authors = get_val(page.html.xpath(element_xpath["module_authors"]))
 
-        module_references = get_val(module_item.html.xpath(element_xpath["module_references"]))
+        module_references = get_val(page.html.xpath(element_xpath["module_references"]))
         module_cve = ""
         module_edb = ""
 
@@ -136,11 +154,11 @@ class MsfCollector:
             cve_list = []
             edb_list = []
             pattern = r"CVE-\d{4}-\d+|EDB-\d+"
-            module_cve_edb_list = re.findall(pattern, module_references)
+            numbering_list = re.findall(pattern, module_references)
             exclusion_pattern = r"CVE-\d{4}-\d+,?|EDB-\d+,?"
             module_references = re.sub(exclusion_pattern, "", module_references)
 
-            for item in module_cve_edb_list:
+            for item in numbering_list:
                 if "CVE" in item:
                     cve_list.append(item)
                 elif "EDB" in item:
@@ -151,10 +169,10 @@ class MsfCollector:
             if len(edb_list) >= 1:
                 module_edb = ','.join(edb_list)
 
-        module_platforms = get_val(module_item.html.xpath(element_xpath["module_platforms"]))
-        module_architectures = get_val(module_item.html.xpath(element_xpath["module_architectures"]))
+        module_platforms = get_val(page.html.xpath(element_xpath["module_platforms"]))
+        module_architectures = get_val(page.html.xpath(element_xpath["module_architectures"]))
 
-        modified_date = MsfCollector.get_modified_date(module_name)
+        modified_date = self.get_modified_date(module_name)
         module_update_date = parser.parse(modified_date).strftime("%Y-%m-%d %H:%M:%S")
         module_collect_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
@@ -183,10 +201,9 @@ class MsfCollector:
             self.msf_dao.add(record)
 
     # Date of site info is not trustworthy, so refer to git's commit log
-    @staticmethod
-    def get_modified_date(module_name):
-        url = "https://api.github.com/graphql"
-        headers = {"Authorization": "token {}".format(api_token)}
+    def get_modified_date(self, module_name):
+        url = GH_URL
+        headers = {"Authorization": "token {}".format(self.github_api)}
 
         repo_args = 'owner: "rapid7", name: "metasploit-framework"'
         ref_args = 'qualifiedName: "refs/heads/master"'
@@ -214,8 +231,8 @@ class MsfCollector:
             % dict(repo_args=repo_args, ref_args=ref_args, hist_args=hist_args)
         }
 
-        r = requests.post(url=url, json=gqljson, headers=headers)
-        json_data = r.json()
+        response = requests.post(url=url, json=gqljson, headers=headers)
+        json_data = response.json()
 
         if json_data.get("errors"):
             return None
@@ -226,69 +243,76 @@ class MsfCollector:
         return json_data["data"]["repository"]["ref"]["target"]["history"]["edges"][0]["node"]["committedDate"]
 
 
-class MsfLocalCollector:
+class MsfLocalCollector(object):
     def __init__(self):
-        db_init = DBInit()
-        self.msf_dao = MsfDAO(db_init.session)
-        self.msf_module_path_list = []
+        config = FileConfig()
+        config.load_yaml()
+        self.modules_path = config.settings["METASPLOIT"]["MODULE_PATH"]
 
+        db_init = DBInit()
+        db_init.create()
+        self.msf_dao = MsfDAO(db_init.session)
+        self.modules_path_list = []
+
+    # Function call that executes an update
     def update(self):
-        if os.path.exists(msf_modules_path):
-            self.fetch(msf_modules_path)
+        if os.path.exists(self.modules_path):
+            self.fetch(self.modules_path)
         else:
             logging.error("Metasploit module dir not exist")
 
-    def fetch(self, msf_module_path):
-        logging.info("Fetching {}".format(msf_modules_path))
-        self.select_module(msf_modules_path)
+    # Get all msf modules list from local
+    def fetch(self, path):
+        logging.info("Fetching {}".format(path))
+        self.select_module(path)
 
         try:
-            module_lists = self.msf_module_path_list
-            self.convert(module_lists)
+            module_list = self.modules_path_list
+            self.convert(module_list)
         except Exception as e:
             logging.warning("Exception while parsing modules")
             logging.warning("{}".format(e))
 
-    def convert(self, module_lists):
-        items = module_lists
-        logging.info("Fetched {} modules list".format(len(items)))
-        logging.info("Inserting fetched modules...")
+    # Classifier of the fetched module path
+    def select_module(self, path):
+        dir_list = os.listdir(path)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            futures = {executor.submit(self.parse_msf_module_local, item): item for item in items}
-
-            for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
-                pass
-
-        executor.shutdown()
-        self.msf_dao.commit()
-        logging.info("Successfully updated")
-
-    def select_module(self, msf_module_path):
-        dir_contains = os.listdir(msf_module_path)
-
-        for sub_module in dir_contains:
-            if sub_module in msf_parse_default:
-                relevant_path = f"{msf_module_path}{PATH_SPLIT}{sub_module}"
+        for module in dir_list:
+            if module in MSF_MODULE_DEFAULT:
+                relevant_path = f"{path}{PATH_SPLIT}{module}"
                 self.search_dir_tree(relevant_path)
 
         logging.info("Successfully updated")
 
-    def search_dir_tree(self, module_path):
-        dir_contains = os.listdir(module_path)
+    # Recursively search the directory path tree
+    def search_dir_tree(self, path):
+        dir_contains = os.listdir(path)
 
         for dir_or_file in dir_contains:
-            target_path = f"{module_path}{PATH_SPLIT}{dir_or_file}"
+            target_path = f"{path}{PATH_SPLIT}{dir_or_file}"
 
             # This version only supports ruby script
             if os.path.isfile(target_path) and target_path.find(".rb") != -1:
                 # self.parse_msf_module_local(target_path)
-                self.msf_module_path_list.append(target_path)
+                self.modules_path_list.append(target_path)
 
             elif os.path.isdir(target_path):
-                sub_tree = target_path
-                self.search_dir_tree(sub_tree)
+                sub_dir_tree = target_path
+                self.search_dir_tree(sub_dir_tree)
 
+    # Insert a record of each module to the database
+    def convert(self, module_list):
+        items = module_list
+        logging.info("Fetched {} modules list".format(len(items)))
+        logging.info("Inserting fetched modules...")
+
+        for item in tqdm(items):
+            self.parse_msf_module_local(item)
+
+        self.msf_dao.commit()
+        logging.info("Successfully updated")
+
+    # Extracts each element of TEXT and converts it to a database model
     def parse_msf_module_local(self, target_file):
         regex_pattern = {
             'module_info': r"initialize[\s\S]*?end\n",
@@ -529,13 +553,42 @@ class MsfLocalCollector:
 
             if 0 <= regex_num <= 65536:
                 rport_num = regex_num
-        except IndexError:
-            if "include Msf::Exploit::Remote::SMB::Client" in source_code:
-                rport_num = 445
-            if "include Msf::Exploit::Remote::Ftp" in source_code:
-                rport_num = 21
-            if "include Msf::Exploit::Remote::SMTPDeliver" in source_code:
-                rport_num = 25
+        except (IndexError, ValueError):
+            include_dict = {
+                "include Rex::Proto::NATPMP": 5351,
+                "Rex::Proto::ACPP::DEFAULT_PORT": 5009,
+                "Rex::Proto::PJL::DEFAULT_PORT": 9100,
+                "include Msf::Auxiliary::Etcd": 2379,
+                "include Msf::Auxiliary::MQTT": 1883,
+                "include Msf::Auxiliary::NTP": 123,
+                "include Msf::Exploit::ORACLE": 1521,
+                "include Msf::Exploit::Remote::AFP": 548,
+                "include Msf::Exploit::Remote::Arkeia": 617,
+                "include Msf::Exploit::Remote::DB2": 50000,
+                "include Msf::Exploit::Remote::DCERPC": 135,
+                "include Msf::Exploit::Remote::Ftp": 21,
+                "include Msf::Exploit::Remote::HttpClient": 80,
+                "include Msf::Exploit::Remote::Imap": 143,
+                "include Msf::Exploit::Remote::Kerberos::Client": 88,
+                "include Msf::Exploit::Remote::MSSQL": 1433,
+                "include Msf::Exploit::Remote::MYSQL": 3306,
+                "include Msf::Exploit::Remote::NDMP": 10000,
+                "include Msf::Exploit::Remote::Pop2": 109,
+                "include Msf::Exploit::Remote::Postgres": 5432,
+                "include Msf::Exploit::Remote::RealPort": 771,
+                "include Msf::Exploit::Remote::SMB::Client": 445,
+                "include Msf::Exploit::Remote::Smtp": 25,
+                "include Msf::Exploit::Remote::SMTPDeliver": 25,
+                "include Msf::Exploit::Remote::SNMPClient": 161,
+                "include Msf::Exploit::Remote::SunRPC": 111,
+                "include Msf::Exploit::Remote::TNS": 1521,
+                "include Msf::Exploit::Remote::Telnet": 23,
+                "include Msf::Exploit::Remote::WDBRPC_Client": 17185,
+                "include Msf::Exploit::Remote::WinRM": 5985,
+            }
+            for key, value in include_dict.items():
+                if key in source_code:
+                    rport_num = value
 
         return rport_num
 

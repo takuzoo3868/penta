@@ -3,14 +3,12 @@ from enum import Enum
 import logging
 import textwrap
 
-from db.db import CveDAO, DBInit, EdbDAO, MsfDAO
-from fetch.fetch_edb import EdbCollector
-from fetch.fetch_msf import MsfCollector
-from fetch.fetch_nvd import NvdCveCollector
-from models.models import CveRecord, EdbRecord, MsfRecord
+from fetch import EdbCollector, MsfCollector, NvdCveCollector
+from lib.db import CveDAO, DBInit, EdbDAO, MsfDAO
+from lib.models import CveRecord, EdbRecord, MsfRecord
+from lib.utils import Colors
 from sqlalchemy import and_, desc
 from tabulate import tabulate
-from utils import Colors
 
 
 class ColouringSeverity(str, Enum):
@@ -18,7 +16,7 @@ class ColouringSeverity(str, Enum):
     LOW: str = "{}LOW{}".format(Colors.GREEN, Colors.END)
     MEDIUM: str = "{}MEDIUM{}".format(Colors.YELLOW, Colors.END)
     HIGH: str = "{}HIGH{}".format(Colors.RED, Colors.END)
-    CRITICAL: str = "{}{}CRITICAL{}".format(Colors.BOLD, Colors.RED, Colors.END)
+    CRITICAL: str = "{}{}CRITICAL{}".format(Colors.BOLD, Colors.BG_RED, Colors.END)
 
     @staticmethod
     def from_str(sev_str):
@@ -113,7 +111,7 @@ class DailyReportor:
 
         fetch_nvd.recent()
         fetch_nvd.update()
-        fetch_edb.minor_update()
+        fetch_edb.update()
         fetch_msf.update()
 
         self.view_report()
