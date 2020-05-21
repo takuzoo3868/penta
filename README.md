@@ -30,22 +30,18 @@ Penta is is Pentest semi-automation tool using Python3. It provides advanced fea
 
 ### Install requirements
 
-penta requires the following packages.
+`penta` requires the following packages.
 
-- Python3.7+
+- Python3.7+ (pyenv)
 - pipenv
 
 Resolve python package dependency.
+```
+$ git clone https://github.com/takuzoo3868/penta.git && cd penta
+$ pipenv install --python 3.7
+```
 
-```
-$ pipenv install
-```
-
-If you dislike pipenv
-
-```
-$ pip install -r requirements.txt
-```
+If you are willing to contribute as a developer, please also install a developer package using `pipenv install --dev`.
 
 ## Usage
 
